@@ -148,7 +148,9 @@
   <div class="page-head">
     <div class="page-eyebrow">Room &amp; Group Board · Internal</div>
     <h1>인플루언서 그룹 · 객실 배정 보드</h1>
-    <p>카드를 드래그해서 그룹 사이를 옮기고, 새 인플루언서는 아래 폼으로 추가하세요. 그룹당 최대 5팀입니다.</p>
+    <p>카드를 드래그해서 그룹 사이를 옮기고, 새 인플루언서는 아래 폼으로 추가하세요. 그룹당 최대 5팀입니다.<br>
+    변경사항은 이 브라우저에 자동 저장되어 새로고침해도 유지됩니다.</p>
+    <button type="button" id="resetBtn" style="margin-top:10px;font-size:12px;font-weight:700;color:var(--sub-ink);background:var(--bg-soft);border:1px solid var(--line);padding:6px 14px;border-radius:999px;cursor:pointer;font-family:inherit;">처음 상태로 초기화</button>
   </div>
 
   <div class="pkg-grid" id="pkgGrid"></div>
@@ -179,7 +181,7 @@
   <div class="board" id="boardSat"></div>
 
   <div class="footer-note">
-    📌 이 보드는 <b>브라우저를 새로고침하면 처음 상태로 초기화</b>됩니다. 최종 배정 결과는 별도 문서(스프레드시트 등)에 옮겨 기록해두세요.<br>
+    📌 변경사항은 <b>이 브라우저에 자동 저장</b>되어 새로고침해도 유지됩니다. (단, 다른 브라우저·기기·시크릿 모드에서는 보이지 않으니, 팀원과 공유하려면 캡처하거나 별도 문서로 옮겨두세요.)<br>
     📌 객실 수: 유스호스텔(원룸형) 13실, 펜션 6실 중 1실은 백패킹존 배정 제외 → 가용 펜션 5실, 총 가용 18실.<br>
     📌 그룹 구성 권장: 그룹당 최대 5팀. 오디오 겹침 방지를 위해 인스타그래머 2팀 + 유튜버 2~3팀 구성을 권장합니다.
   </div>
@@ -218,11 +220,12 @@
   var MAX_PER_GROUP = 5;
   var TOTAL_YH = 13;
   var TOTAL_PENSION = 5;
+  var STORAGE_KEY = 'couchpotato_room_board_v1';
 
   var nextId = 1;
   function genId(){ return 'p' + (nextId++); }
 
-  var influencers = [
+  var seedInfluencers = [
     { id: genId(), name:'권세연', channel:'yt', channelName:'nodapcamp', pkg:'day-a', group:'fri-a', room:'' },
     { id: genId(), name:'우연지', channel:'ig', channelName:'등산하는그레이스', pkg:'day-a', group:'fri-a', room:'' },
     { id: genId(), name:'이돈휘', channel:'ig', channelName:'캠핑두목', pkg:'stay-a', group:'fri-a', room:'yh' },
@@ -238,6 +241,36 @@
     { id: genId(), name:'박미나', channel:'ig', channelName:'ppmnn___', pkg:'day-b', group:'sat-b', room:'' },
     { id: genId(), name:'손다민', channel:'ig', channelName:'happy.___.s', pkg:'day-b', group:'sat-c', room:'' }
   ];
+
+  function saveState(){
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ nextId: nextId, influencers: influencers }));
+    } catch(e){
+      console.warn('저장 실패 (localStorage 사용 불가):', e);
+    }
+  }
+
+  function loadState(){
+    try{
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw) return null;
+      var parsed = JSON.parse(raw);
+      if(!parsed || !Array.isArray(parsed.influencers)) return null;
+      return parsed;
+    } catch(e){
+      return null;
+    }
+  }
+
+  var loaded = loadState();
+  var influencers;
+  if(loaded){
+    influencers = loaded.influencers;
+    nextId = loaded.nextId || (influencers.length + 1);
+  } else {
+    influencers = seedInfluencers;
+    saveState();
+  }
 
   var draggedId = null;
 
@@ -445,6 +478,7 @@
   }
 
   function renderAll(){
+    saveState();
     renderSummary();
     renderBoards();
   }
@@ -469,6 +503,17 @@
     });
     document.getElementById('addName').value = '';
     document.getElementById('addChannelName').value = '';
+    renderAll();
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', function(){
+    if(!confirm('현재 배정을 모두 지우고 초기 14명 상태로 되돌릴까요? 되돌릴 수 없습니다.')){
+      return;
+    }
+    nextId = 1;
+    influencers = seedInfluencers.map(function(i){ return Object.assign({}, i); });
+    // reassign fresh ids to avoid collisions after multiple resets
+    influencers.forEach(function(i){ i.id = genId(); });
     renderAll();
   });
 
