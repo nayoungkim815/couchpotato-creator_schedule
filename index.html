@@ -132,6 +132,17 @@
   }
   .card-remove:hover{color:var(--full);}
 
+  .card.locked{cursor:default;}
+  .card.locked .card-remove{display:none;}
+  .card-room select:disabled{background:var(--bg-soft);color:var(--sub-ink);cursor:not-allowed;}
+  .add-form.locked-form input:disabled, .add-form.locked-form select:disabled{opacity:0.5;cursor:not-allowed;}
+  .add-form.locked-form button:disabled{opacity:0.5;cursor:not-allowed;}
+  .locked-banner{
+    background:var(--warn-bg);color:var(--warn);border-radius:12px;padding:10px 16px;
+    font-size:12.5px;font-weight:700;margin-bottom:18px;display:none;
+  }
+  .locked-banner.show{display:block;}
+
   .footer-note{
     margin-top:30px;font-size:12px;color:var(--sub-ink);line-height:1.7;
     background:#fff;border-radius:14px;padding:16px 20px;box-shadow:0 0 0 1px var(--line);
@@ -150,14 +161,19 @@
     <h1>인플루언서 그룹 · 객실 배정 보드</h1>
     <p>카드를 드래그해서 그룹 사이를 옮기고, 새 인플루언서는 아래 폼으로 추가하세요. 그룹당 최대 5팀입니다.<br>
     변경사항은 이 브라우저에 자동 저장되어 새로고침해도 유지됩니다.</p>
-    <button type="button" id="resetBtn" style="margin-top:10px;font-size:12px;font-weight:700;color:var(--sub-ink);background:var(--bg-soft);border:1px solid var(--line);padding:6px 14px;border-radius:999px;cursor:pointer;font-family:inherit;">처음 상태로 초기화</button>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+      <button type="button" id="lockBtn" style="font-size:12px;font-weight:700;padding:6px 14px;border-radius:999px;cursor:pointer;font-family:inherit;border:1px solid var(--line);"></button>
+      <button type="button" id="resetBtn" style="font-size:12px;font-weight:700;color:var(--sub-ink);background:var(--bg-soft);border:1px solid var(--line);padding:6px 14px;border-radius:999px;cursor:pointer;font-family:inherit;">처음 상태로 초기화</button>
+    </div>
   </div>
+
+  <div class="locked-banner" id="lockedBanner">🔒 현재 잠금 상태입니다 — 배정을 수정하려면 위의 잠금 해제 버튼을 눌러주세요.</div>
 
   <div class="pkg-grid" id="pkgGrid"></div>
 
   <div class="summary-grid" id="summaryGrid"></div>
 
-  <div class="add-form">
+  <div class="add-form" id="addForm">
     <h3>+ 새 인플루언서 추가</h3>
     <div class="add-form-row">
       <input id="addName" type="text" placeholder="인플루언서 명">
@@ -244,7 +260,7 @@
 
   function saveState(){
     try{
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ nextId: nextId, influencers: influencers }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ nextId: nextId, influencers: influencers, locked: isLocked }));
     } catch(e){
       console.warn('저장 실패 (localStorage 사용 불가):', e);
     }
@@ -264,9 +280,11 @@
 
   var loaded = loadState();
   var influencers;
+  var isLocked = false;
   if(loaded){
     influencers = loaded.influencers;
     nextId = loaded.nextId || (influencers.length + 1);
+    isLocked = !!loaded.locked;
   } else {
     influencers = seedInfluencers;
     saveState();
@@ -332,8 +350,8 @@
   }
 
   function buildCard(inf){
-    var card = el('div', 'card');
-    card.draggable = true;
+    var card = el('div', 'card' + (isLocked ? ' locked' : ''));
+    card.draggable = !isLocked;
     card.dataset.id = inf.id;
 
     var top = el('div', 'card-top');
@@ -348,6 +366,7 @@
     if(PACKAGES[inf.pkg] && PACKAGES[inf.pkg].needsRoom){
       var roomWrap = el('div', 'card-room');
       var sel = document.createElement('select');
+      sel.disabled = isLocked;
       Object.keys(ROOM_TYPES).forEach(function(key){
         var opt = document.createElement('option');
         opt.value = key;
@@ -364,15 +383,21 @@
       card.appendChild(roomWrap);
     }
 
-    var removeBtn = el('button', 'card-remove', '×');
-    removeBtn.type = 'button';
-    removeBtn.addEventListener('click', function(){
-      influencers = influencers.filter(function(i){ return i.id !== inf.id; });
-      renderAll();
-    });
-    card.appendChild(removeBtn);
+    if(!isLocked){
+      var removeBtn = el('button', 'card-remove', '×');
+      removeBtn.type = 'button';
+      removeBtn.addEventListener('click', function(){
+        if(!confirm(inf.name + '님을 정말 삭제하시겠습니까?')){
+          return;
+        }
+        influencers = influencers.filter(function(i){ return i.id !== inf.id; });
+        renderAll();
+      });
+      card.appendChild(removeBtn);
+    }
 
     card.addEventListener('dragstart', function(e){
+      if(isLocked){ e.preventDefault(); return; }
       draggedId = inf.id;
       card.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
@@ -421,6 +446,7 @@
     bucket.appendChild(cardsWrap);
 
     bucket.addEventListener('dragover', function(e){
+      if(isLocked) return;
       e.preventDefault();
       var atCapacity = !isUnassigned && members.length >= MAX_PER_GROUP;
       var draggedAlreadyHere = draggedId && members.some(function(m){ return m.id === draggedId; });
@@ -439,6 +465,7 @@
       bucket.classList.remove('drag-over-full');
     });
     bucket.addEventListener('drop', function(e){
+      if(isLocked) return;
       e.preventDefault();
       bucket.classList.remove('drag-over');
       bucket.classList.remove('drag-over-full');
@@ -477,13 +504,55 @@
     });
   }
 
+  function renderLockUI(){
+    var lockBtn = document.getElementById('lockBtn');
+    var banner = document.getElementById('lockedBanner');
+    var addForm = document.getElementById('addForm');
+    var resetBtn = document.getElementById('resetBtn');
+
+    if(isLocked){
+      lockBtn.textContent = '🔓 잠금 해제';
+      lockBtn.style.background = 'var(--full-bg)';
+      lockBtn.style.color = 'var(--full)';
+      banner.classList.add('show');
+      addForm.classList.add('locked-form');
+    } else {
+      lockBtn.textContent = '🔒 이 버전 잠그기';
+      lockBtn.style.background = 'var(--bg-soft)';
+      lockBtn.style.color = 'var(--ink)';
+      banner.classList.remove('show');
+      addForm.classList.remove('locked-form');
+    }
+
+    ['addName','addChannel','addChannelName','addPackage','addBtn'].forEach(function(id){
+      document.getElementById(id).disabled = isLocked;
+    });
+    resetBtn.disabled = isLocked;
+    resetBtn.style.opacity = isLocked ? '0.5' : '1';
+    resetBtn.style.cursor = isLocked ? 'not-allowed' : 'pointer';
+  }
+
   function renderAll(){
     saveState();
+    renderLockUI();
     renderSummary();
     renderBoards();
   }
 
+  document.getElementById('lockBtn').addEventListener('click', function(){
+    if(!isLocked){
+      if(!confirm('현재 배정 상태로 잠글까요? 잠그면 드래그·추가·삭제가 모두 막힙니다.')){
+        return;
+      }
+      isLocked = true;
+    } else {
+      isLocked = false;
+    }
+    renderAll();
+  });
+
   document.getElementById('addBtn').addEventListener('click', function(){
+    if(isLocked) return;
     var name = document.getElementById('addName').value.trim();
     var channel = document.getElementById('addChannel').value;
     var channelName = document.getElementById('addChannelName').value.trim();
@@ -507,6 +576,7 @@
   });
 
   document.getElementById('resetBtn').addEventListener('click', function(){
+    if(isLocked) return;
     if(!confirm('현재 배정을 모두 지우고 초기 14명 상태로 되돌릴까요? 되돌릴 수 없습니다.')){
       return;
     }
