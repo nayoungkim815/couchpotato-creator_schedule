@@ -159,6 +159,7 @@
     font-size:12.5px;position:relative;
   }
   .card.dragging{opacity:0.4;}
+  .card.no-drag{cursor:default;}
   .card-top{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
   .card-name{font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .ch-tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;flex:none;}
@@ -506,9 +507,9 @@
     return stat;
   }
 
-  function buildCard(inf){
-    var card = el('div', 'card' + (isLocked ? ' locked' : ''));
-    card.draggable = !isLocked;
+  function buildCard(inf, noDrag){
+    var card = el('div', 'card' + (isLocked ? ' locked' : '') + (noDrag ? ' no-drag' : ''));
+    card.draggable = !isLocked && !noDrag;
     card.dataset.id = inf.id;
 
     var top = el('div', 'card-top');
@@ -615,24 +616,26 @@
       card.appendChild(removeBtn);
     }
 
-    card.addEventListener('dragstart', function(e){
-      if(isLocked){ e.preventDefault(); return; }
-      draggedId = inf.id;
-      card.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', inf.id);
-    });
-    card.addEventListener('dragend', function(){
-      card.classList.remove('dragging');
-      draggedId = null;
-    });
+    if(!noDrag){
+      card.addEventListener('dragstart', function(e){
+        if(isLocked){ e.preventDefault(); return; }
+        draggedId = inf.id;
+        card.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', inf.id);
+      });
+      card.addEventListener('dragend', function(){
+        card.classList.remove('dragging');
+        draggedId = null;
+      });
+    }
 
     return card;
   }
 
-  function buildBucket(groupId, letter, time, isUnassigned, titleHtml){
+  function buildBucket(groupId, letter, time, isUnassigned, titleHtml, noDrag){
     var members = influencers.filter(function(i){ return (i.group || null) === groupId; });
-    var bucket = el('div', 'bucket' + (isUnassigned ? ' unassigned-bucket' : ''));
+    var bucket = el('div', 'bucket' + (isUnassigned ? ' unassigned-bucket' : '') + (noDrag ? ' list-only-bucket' : ''));
     bucket.dataset.group = groupId === null ? '' : groupId;
 
     var head = el('div', 'bucket-head');
@@ -659,48 +662,50 @@
       cardsWrap.appendChild(el('div', 'bucket-empty-msg', isUnassigned ? '해당 인원 없음' : '배정 인원 없음'));
     } else {
       members.forEach(function(inf){
-        cardsWrap.appendChild(buildCard(inf));
+        cardsWrap.appendChild(buildCard(inf, noDrag));
       });
     }
     bucket.appendChild(cardsWrap);
 
-    bucket.addEventListener('dragover', function(e){
-      if(isLocked) return;
-      e.preventDefault();
-      var atCapacity = !isUnassigned && members.length >= MAX_PER_GROUP;
-      var draggedAlreadyHere = draggedId && members.some(function(m){ return m.id === draggedId; });
-      if(atCapacity && !draggedAlreadyHere){
-        bucket.classList.add('drag-over-full');
+    if(!noDrag){
+      bucket.addEventListener('dragover', function(e){
+        if(isLocked) return;
+        e.preventDefault();
+        var atCapacity = !isUnassigned && members.length >= MAX_PER_GROUP;
+        var draggedAlreadyHere = draggedId && members.some(function(m){ return m.id === draggedId; });
+        if(atCapacity && !draggedAlreadyHere){
+          bucket.classList.add('drag-over-full');
+          bucket.classList.remove('drag-over');
+          e.dataTransfer.dropEffect = 'none';
+        } else {
+          bucket.classList.add('drag-over');
+          bucket.classList.remove('drag-over-full');
+          e.dataTransfer.dropEffect = 'move';
+        }
+      });
+      bucket.addEventListener('dragleave', function(){
         bucket.classList.remove('drag-over');
-        e.dataTransfer.dropEffect = 'none';
-      } else {
-        bucket.classList.add('drag-over');
         bucket.classList.remove('drag-over-full');
-        e.dataTransfer.dropEffect = 'move';
-      }
-    });
-    bucket.addEventListener('dragleave', function(){
-      bucket.classList.remove('drag-over');
-      bucket.classList.remove('drag-over-full');
-    });
-    bucket.addEventListener('drop', function(e){
-      if(isLocked) return;
-      e.preventDefault();
-      bucket.classList.remove('drag-over');
-      bucket.classList.remove('drag-over-full');
-      var id = e.dataTransfer.getData('text/plain') || draggedId;
-      if(!id) return;
-      var inf = influencers.filter(function(i){ return i.id === id; })[0];
-      if(!inf) return;
-      var alreadyHere = (inf.group || null) === groupId;
-      if(alreadyHere) return;
-      if(!isUnassigned && members.length >= MAX_PER_GROUP){
-        alert((letter ? letter + '그룹은' : '이 그룹은') + ' 이미 ' + MAX_PER_GROUP + '팀 정원입니다.');
-        return;
-      }
-      inf.group = groupId;
-      renderAll();
-    });
+      });
+      bucket.addEventListener('drop', function(e){
+        if(isLocked) return;
+        e.preventDefault();
+        bucket.classList.remove('drag-over');
+        bucket.classList.remove('drag-over-full');
+        var id = e.dataTransfer.getData('text/plain') || draggedId;
+        if(!id) return;
+        var inf = influencers.filter(function(i){ return i.id === id; })[0];
+        if(!inf) return;
+        var alreadyHere = (inf.group || null) === groupId;
+        if(alreadyHere) return;
+        if(!isUnassigned && members.length >= MAX_PER_GROUP){
+          alert((letter ? letter + '그룹은' : '이 그룹은') + ' 이미 ' + MAX_PER_GROUP + '팀 정원입니다.');
+          return;
+        }
+        inf.group = groupId;
+        renderAll();
+      });
+    }
 
     return bucket;
   }
@@ -713,7 +718,7 @@
     var otherBoard = document.getElementById('boardOther');
     if(otherBoard){
       otherBoard.innerHTML = '';
-      otherBoard.appendChild(buildBucket('other', null, null, true, '기타 인원<span>그룹 배정 불필요 (내부인원 등)</span>'));
+      otherBoard.appendChild(buildBucket('other', null, null, true, '기타 인원<span>수정·삭제만 가능한 리스트</span>', true));
     }
 
     var friBoard = document.getElementById('boardFri');
