@@ -164,6 +164,7 @@
   .ch-tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;flex:none;}
   .ch-tag.ig{background:var(--ig-bg);color:var(--ig);}
   .ch-tag.yt{background:var(--yt-bg);color:var(--yt);}
+  .ch-tag.internal{background:var(--bg-soft);color:var(--sub-ink);box-shadow:0 0 0 1px var(--line);}
   .card-channel{color:var(--sub-ink);font-size:11px;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .card-pkg{font-size:10.5px;color:var(--accent);font-weight:700;margin-bottom:4px;}
   .card-fee-edit{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
@@ -252,15 +253,17 @@
   <div class="add-form" id="addForm">
     <h3>+ 새 인플루언서 추가</h3>
     <div class="add-form-row">
-      <input id="addName" type="text" placeholder="인플루언서 명">
       <select id="addChannel">
         <option value="yt">유튜브</option>
         <option value="ig">인스타</option>
+        <option value="internal">내부</option>
       </select>
+      <input id="addName" type="text" placeholder="인플루언서 명">
       <input id="addChannelName" type="text" placeholder="채널명">
       <select id="addPackage"></select>
       <input id="addCompanion" type="text" placeholder="동행자 정보 (선택, 예: 이름/연락처/관계)">
       <input id="addCompanionCount" type="number" min="0" step="1" placeholder="동행자 수" style="flex:1 1 90px;">
+      <select id="addRoomType" style="display:none;"></select>
       <input id="addExtraFee" type="text" inputmode="numeric" placeholder="추가 원고료 (원)">
       <button id="addBtn" type="button">추가</button>
     </div>
@@ -268,6 +271,9 @@
 
   <h2 class="day-title"><span class="d-badge">미배정</span>그룹을 아직 정하지 않은 인플루언서</h2>
   <div class="board" id="boardUnassigned"></div>
+
+  <h2 class="day-title"><span class="d-badge">기타</span>그룹 배정이 필요 없는 인원 (내부인원 등)</h2>
+  <div class="board" id="boardOther"></div>
 
   <h2 class="day-title"><span class="d-badge">9/11 금</span>인플루언서 데이 (14:00~19:00)</h2>
   <div class="board" id="boardFri"></div>
@@ -292,7 +298,7 @@
     'stay-a': { label:'숙박형A', desc:'9/11~9/12(금-토) · 인플루언서 데이 + 1일차 참석 · 숙박 지원', needsRoom:true, day:'fri', fuel:100000 },
     'stay-b': { label:'숙박형B', desc:'9/12~9/13(토-일) · 본행사만 참석 · 숙박 지원', needsRoom:true, day:'sat', fuel:100000 },
     'stay-c': { label:'숙박형C', desc:'9/11~9/13(금-일) · 인플루언서 데이 + 본행사 전체 참석 · 숙박 지원', needsRoom:true, day:'fri', fuel:100000 },
-    'internal': { label:'내부인원', desc:'행사 운영 지원 내부 인원 참여', needsRoom:false, day:'fri', fuel:0 }
+    'internal': { label:'내부인원', desc:'행사 운영 지원 내부 인원 참여', needsRoom:true, day:'fri', fuel:0 }
   };
 
   var ROOM_TYPES = {
@@ -428,11 +434,31 @@
     var sel = document.getElementById('addPackage');
     sel.innerHTML = '';
     Object.keys(PACKAGES).forEach(function(key){
+      if(key === 'internal') return;
       var opt = document.createElement('option');
       opt.value = key;
       opt.textContent = PACKAGES[key].label;
       sel.appendChild(opt);
     });
+  }
+
+  function populateAddRoomType(){
+    var sel = document.getElementById('addRoomType');
+    sel.innerHTML = '';
+    Object.keys(ROOM_TYPES).forEach(function(key){
+      var opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = ROOM_TYPES[key];
+      sel.appendChild(opt);
+    });
+  }
+
+  function updateAddFormForChannel(){
+    var channel = document.getElementById('addChannel').value;
+    var isInternal = channel === 'internal';
+    document.getElementById('addChannelName').style.display = isInternal ? 'none' : '';
+    document.getElementById('addPackage').style.display = isInternal ? 'none' : '';
+    document.getElementById('addRoomType').style.display = isInternal ? '' : 'none';
   }
 
   function renderSummary(){
@@ -441,14 +467,22 @@
     var pensionUsed = influencers.filter(function(i){ return i.room === 'pension1' || i.room === 'pension2'; }).length;
     var totalUsed = yhUsed + pensionUsed;
     var totalAvail = TOTAL_YH + TOTAL_PENSION;
-    var totalCompanions = influencers.reduce(function(sum, i){ return sum + (i.companionCount || 0); }, 0);
-    var totalPeople = influencers.length + totalCompanions;
+
+    var mainInfluencers = influencers.filter(function(i){ return i.pkg !== 'internal'; });
+    var internalInfluencers = influencers.filter(function(i){ return i.pkg === 'internal'; });
+
+    var totalCompanions = mainInfluencers.reduce(function(sum, i){ return sum + (i.companionCount || 0); }, 0);
+    var totalPeople = mainInfluencers.length + totalCompanions;
+
+    var internalCompanions = internalInfluencers.reduce(function(sum, i){ return sum + (i.companionCount || 0); }, 0);
+    var internalTotal = internalInfluencers.length + internalCompanions;
 
     grid.innerHTML = '';
     grid.appendChild(buildRoomStat('전체 가용 객실', totalUsed, totalAvail, (totalAvail - totalUsed) + '실 남음 (유스호스텔+펜션)'));
     grid.appendChild(buildRoomStat('유스호스텔(원룸형)', yhUsed, TOTAL_YH, (TOTAL_YH - yhUsed) + '실 남음'));
     grid.appendChild(buildRoomStat('펜션', pensionUsed, TOTAL_PENSION, (TOTAL_PENSION - pensionUsed) + '실 남음 · 총 6실 중 1실 백패킹존 제외'));
-    grid.appendChild(buildPeopleStat('총 참가 인원 (동행자 포함)', totalPeople, '인플루언서 ' + influencers.length + '명 + 동행자 ' + totalCompanions + '명'));
+    grid.appendChild(buildPeopleStat('총 참가 인원 (동행자 포함)', totalPeople, '인플루언서 ' + mainInfluencers.length + '명 + 동행자 ' + totalCompanions + '명 (내부인원 별도)'));
+    grid.appendChild(buildPeopleStat('내부 인원 (별도 카운팅)', internalTotal, '내부인원 ' + internalInfluencers.length + '명 + 동행자 ' + internalCompanions + '명'));
   }
 
   function buildRoomStat(label, used, total, detail){
@@ -479,11 +513,17 @@
 
     var top = el('div', 'card-top');
     top.appendChild(el('span', 'card-name', inf.name));
-    var tag = el('span', 'ch-tag ' + inf.channel, inf.channel === 'yt' ? '유튜브' : '인스타');
-    top.appendChild(tag);
+    if(inf.pkg === 'internal'){
+      top.appendChild(el('span', 'ch-tag internal', '내부'));
+    } else {
+      var tag = el('span', 'ch-tag ' + inf.channel, inf.channel === 'yt' ? '유튜브' : '인스타');
+      top.appendChild(tag);
+    }
     card.appendChild(top);
 
-    card.appendChild(el('div', 'card-channel', inf.channelName));
+    if(inf.pkg !== 'internal'){
+      card.appendChild(el('div', 'card-channel', inf.channelName));
+    }
     card.appendChild(el('div', 'card-pkg', PACKAGES[inf.pkg] ? PACKAGES[inf.pkg].label : inf.pkg));
 
     var feeWrap = el('div', 'card-fee-edit');
@@ -590,7 +630,7 @@
     return card;
   }
 
-  function buildBucket(groupId, letter, time, isUnassigned){
+  function buildBucket(groupId, letter, time, isUnassigned, titleHtml){
     var members = influencers.filter(function(i){ return (i.group || null) === groupId; });
     var bucket = el('div', 'bucket' + (isUnassigned ? ' unassigned-bucket' : ''));
     bucket.dataset.group = groupId === null ? '' : groupId;
@@ -601,7 +641,7 @@
       left.appendChild(el('div', 'bucket-letter', letter));
       left.appendChild(el('div', 'bucket-title', letter + '그룹<span>' + time + '</span>'));
     } else {
-      left.appendChild(el('div', 'bucket-title', '풀(Pool)<span>드래그해서 그룹에 배정</span>'));
+      left.appendChild(el('div', 'bucket-title', titleHtml || '풀(Pool)<span>드래그해서 그룹에 배정</span>'));
     }
     head.appendChild(left);
 
@@ -616,7 +656,7 @@
 
     var cardsWrap = el('div', 'bucket-cards');
     if(members.length === 0){
-      cardsWrap.appendChild(el('div', 'bucket-empty-msg', isUnassigned ? '미배정 인원 없음' : '배정 인원 없음'));
+      cardsWrap.appendChild(el('div', 'bucket-empty-msg', isUnassigned ? '해당 인원 없음' : '배정 인원 없음'));
     } else {
       members.forEach(function(inf){
         cardsWrap.appendChild(buildCard(inf));
@@ -668,7 +708,13 @@
   function renderBoards(){
     var unassignedBoard = document.getElementById('boardUnassigned');
     unassignedBoard.innerHTML = '';
-    unassignedBoard.appendChild(buildBucket(null, null, null, true));
+    unassignedBoard.appendChild(buildBucket(null, null, null, true, '풀(Pool)<span>드래그해서 그룹에 배정</span>'));
+
+    var otherBoard = document.getElementById('boardOther');
+    if(otherBoard){
+      otherBoard.innerHTML = '';
+      otherBoard.appendChild(buildBucket('other', null, null, true, '기타 인원<span>그룹 배정 불필요 (내부인원 등)</span>'));
+    }
 
     var friBoard = document.getElementById('boardFri');
     friBoard.innerHTML = '';
@@ -703,7 +749,7 @@
       addForm.classList.remove('locked-form');
     }
 
-    ['addName','addChannel','addChannelName','addPackage','addCompanion','addCompanionCount','addExtraFee','addBtn'].forEach(function(id){
+    ['addName','addChannel','addChannelName','addPackage','addCompanion','addCompanionCount','addRoomType','addExtraFee','addBtn'].forEach(function(id){
       document.getElementById(id).disabled = isLocked;
     });
     resetBtn.disabled = isLocked;
@@ -740,12 +786,15 @@
   document.getElementById('addBtn').addEventListener('click', function(){
     if(isLocked) return;
     var name = document.getElementById('addName').value.trim();
-    var channel = document.getElementById('addChannel').value;
-    var channelName = document.getElementById('addChannelName').value.trim();
-    var pkg = document.getElementById('addPackage').value;
+    var channelVal = document.getElementById('addChannel').value;
+    var isInternal = channelVal === 'internal';
+    var pkg = isInternal ? 'internal' : document.getElementById('addPackage').value;
+    var channel = isInternal ? '' : channelVal;
+    var channelName = isInternal ? '' : document.getElementById('addChannelName').value.trim();
     var companion = document.getElementById('addCompanion').value.trim();
     var companionCountRaw = document.getElementById('addCompanionCount').value;
     var companionCount = companionCountRaw === '' ? 0 : Math.max(0, parseInt(companionCountRaw, 10) || 0);
+    var room = isInternal ? document.getElementById('addRoomType').value : '';
     var extraFeeDigits = addExtraFeeInput.value.replace(/[^0-9]/g, '');
     var extraFee = extraFeeDigits === '' ? 0 : parseInt(extraFeeDigits, 10);
     if(!name){
@@ -758,8 +807,8 @@
       channel: channel,
       channelName: channelName || '-',
       pkg: pkg,
-      group: null,
-      room: '',
+      group: isInternal ? 'other' : null,
+      room: room,
       companion: companion,
       companionCount: companionCount,
       extraFee: extraFee
@@ -786,6 +835,9 @@
 
   renderPackageLegend();
   populatePackageSelect();
+  populateAddRoomType();
+  document.getElementById('addChannel').addEventListener('change', updateAddFormForChannel);
+  updateAddFormForChannel();
   renderAll();
 
 })();
