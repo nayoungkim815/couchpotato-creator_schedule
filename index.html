@@ -47,7 +47,8 @@
   }
 
   /* ---- 패키지 안내: 조용한 레퍼런스 리스트 ---- */
-  .pkg-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px;margin-bottom:32px;}
+  .pkg-budget-row{display:flex;gap:14px;align-items:stretch;margin-bottom:32px;flex-wrap:wrap;}
+  .pkg-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px;flex:2 1 380px;margin-bottom:0;align-content:start;}
   .pkg-item{
     display:flex;gap:10px;align-items:flex-start;
     background:var(--bg-soft);border-radius:10px;padding:11px 13px;
@@ -58,6 +59,23 @@
   .pkg-item .p-icon{font-size:14px;flex:none;margin-top:1px;opacity:0.7;}
   .pkg-item .p-tag{font-size:12px;font-weight:800;color:var(--ink);margin-bottom:2px;}
   .pkg-item .p-desc{font-size:11px;color:var(--sub-ink);line-height:1.5;}
+  .pkg-item .p-fuel{font-size:10.5px;font-weight:700;color:var(--accent);margin-top:5px;}
+
+  .budget-panel{
+    flex:1 1 200px;background:#fff;border-radius:14px;padding:16px 18px;
+    box-shadow:0 0 0 1px var(--line);display:flex;flex-direction:column;justify-content:center;gap:4px;
+  }
+  .budget-panel .budget-title{font-size:12px;font-weight:800;color:var(--ink);margin-bottom:8px;}
+  .budget-panel .b-row{display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;}
+  .budget-panel .b-row:not(:last-child){border-bottom:1px solid var(--line);}
+  .budget-panel .b-label{font-size:11.5px;font-weight:600;color:var(--sub-ink);}
+  .budget-panel .b-val{font-size:14px;font-weight:800;color:var(--ink);}
+  .budget-panel .b-row.total .b-label{color:var(--ink);font-weight:700;}
+  .budget-panel .b-row.total .b-val{color:var(--accent);font-size:16.5px;}
+
+  @media (max-width:760px){
+    .pkg-budget-row{flex-direction:column;}
+  }
 
   /* ---- 객실 현황: 진한 대시보드 패널로 강조 ---- */
   .room-dashboard{
@@ -148,6 +166,14 @@
   .ch-tag.yt{background:var(--yt-bg);color:var(--yt);}
   .card-channel{color:var(--sub-ink);font-size:11px;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .card-pkg{font-size:10.5px;color:var(--accent);font-weight:700;margin-bottom:4px;}
+  .card-fee-edit{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
+  .card-fee-label{font-size:10px;font-weight:700;color:var(--sub-ink);flex:none;}
+  .card-fee-input{
+    width:100%;font-size:11px;padding:4px 7px;border-radius:7px;border:1px solid var(--line);
+    background:#fff;font-family:inherit;color:var(--yt);font-weight:700;text-align:right;
+  }
+  .card-fee-input:disabled{background:var(--bg-soft);color:var(--sub-ink);cursor:not-allowed;}
+  .card-fee-input::placeholder{color:var(--sub-ink);font-weight:500;}
   .card-room select{
     width:100%;font-size:11px;padding:4px 6px;border-radius:7px;border:1px solid var(--line);
     background:#fff;font-family:inherit;color:var(--ink);
@@ -207,7 +233,10 @@
   <div class="locked-banner" id="lockedBanner">🔒 현재 잠금 상태입니다 — 배정을 수정하려면 위의 잠금 해제 버튼을 눌러주세요.</div>
 
   <h2 class="section-label">📦 참여 패키지 안내</h2>
-  <div class="pkg-list" id="pkgGrid"></div>
+  <div class="pkg-budget-row">
+    <div class="pkg-list" id="pkgGrid"></div>
+    <div class="budget-panel" id="budgetPanel"></div>
+  </div>
 
   <h2 class="section-label">🏨 객실 현황</h2>
   <div class="room-dashboard" id="summaryGrid"></div>
@@ -223,6 +252,7 @@
       <input id="addChannelName" type="text" placeholder="채널명">
       <select id="addPackage"></select>
       <input id="addCompanion" type="text" placeholder="동행자 정보 (선택, 예: 이름/연락처/관계)">
+      <input id="addExtraFee" type="text" inputmode="numeric" placeholder="추가 원고료 (원)">
       <button id="addBtn" type="button">추가</button>
     </div>
   </div>
@@ -248,11 +278,11 @@
 (function(){
 
   var PACKAGES = {
-    'day-a': { label:'1일 방문형A', desc:'9/11(금) 14:00~18:00 · 인플루언서 데이 당일 참여 · 숙박 없음', needsRoom:false, day:'fri' },
-    'day-b': { label:'1일 방문형B', desc:'9/12(토) 10:30~13:30 · 인플루언서 타임 당일 참여 · 숙박 없음', needsRoom:false, day:'sat' },
-    'stay-a': { label:'숙박형A', desc:'9/11~9/12(금-토) · 인플루언서 데이 + 1일차 참석 · 숙박 지원', needsRoom:true, day:'fri' },
-    'stay-b': { label:'숙박형B', desc:'9/12~9/13(토-일) · 본행사만 참석 · 숙박 지원', needsRoom:true, day:'sat' },
-    'stay-c': { label:'숙박형C', desc:'9/11~9/13(금-일) · 인플루언서 데이 + 본행사 전체 참석 · 숙박 지원', needsRoom:true, day:'fri' }
+    'day-a': { label:'1일 방문형A', desc:'9/11(금) 14:00~18:00 · 인플루언서 데이 당일 참여 · 숙박 없음', needsRoom:false, day:'fri', fuel:150000 },
+    'day-b': { label:'1일 방문형B', desc:'9/12(토) 10:30~13:30 · 인플루언서 타임 당일 참여 · 숙박 없음', needsRoom:false, day:'sat', fuel:150000 },
+    'stay-a': { label:'숙박형A', desc:'9/11~9/12(금-토) · 인플루언서 데이 + 1일차 참석 · 숙박 지원', needsRoom:true, day:'fri', fuel:100000 },
+    'stay-b': { label:'숙박형B', desc:'9/12~9/13(토-일) · 본행사만 참석 · 숙박 지원', needsRoom:true, day:'sat', fuel:100000 },
+    'stay-c': { label:'숙박형C', desc:'9/11~9/13(금-일) · 인플루언서 데이 + 본행사 전체 참석 · 숙박 지원', needsRoom:true, day:'fri', fuel:100000 }
   };
 
   var ROOM_TYPES = {
@@ -282,20 +312,20 @@
   function genId(){ return 'p' + (nextId++); }
 
   var seedInfluencers = [
-    { id: genId(), name:'권세연', channel:'yt', channelName:'nodapcamp', pkg:'day-a', group:'fri-a', room:'', companion:'백지안 / 010-7930-3753 / 친구' },
-    { id: genId(), name:'우연지', channel:'ig', channelName:'등산하는그레이스', pkg:'day-a', group:'fri-a', room:'', companion:'' },
-    { id: genId(), name:'이돈휘', channel:'ig', channelName:'캠핑두목', pkg:'stay-a', group:'fri-a', room:'yh', companion:'' },
-    { id: genId(), name:'홍민지', channel:'ig', channelName:'luceam95_45', pkg:'stay-c', group:'fri-a', room:'yh', companion:'전재홍 / 010-2758-6567 / 남자친구' },
-    { id: genId(), name:'전소현', channel:'yt', channelName:'또밖또밖', pkg:'day-a', group:'fri-b', room:'', companion:'' },
-    { id: genId(), name:'이지현', channel:'ig', channelName:'hard.hyun', pkg:'stay-a', group:'fri-b', room:'yh', companion:'김민수 / 010-2047-2280 / 남자친구' },
-    { id: genId(), name:'정우성', channel:'ig', channelName:'juungwoosung', pkg:'stay-c', group:'fri-b', room:'yh', companion:'미정 (생기면 연락 예정)' },
-    { id: genId(), name:'심치성', channel:'yt', channelName:'캠퍼조이', pkg:'day-a', group:'fri-c', room:'', companion:'' },
-    { id: genId(), name:'노다현', channel:'ig', channelName:'itda.upda', pkg:'stay-c', group:'fri-c', room:'yh', companion:'윤경주 / 010-8226-2232 / 친구' },
-    { id: genId(), name:'진민희', channel:'ig', channelName:'j_mining', pkg:'stay-c', group:'fri-c', room:'pension1', companion:'심지은 / 010-9625-8815 / 친구, 박아름 / 010-7435-3503 / 친구' },
-    { id: genId(), name:'표현준', channel:'yt', channelName:'션표의자연여행', pkg:'stay-c', group:'fri-d', room:'pension2', companion:'허정호 / 010-6664-581 / 크루, 김선영 / 010-7567-0369 / 크루' },
-    { id: genId(), name:'김혁', channel:'yt', channelName:'김혁은오늘도밖입니다', pkg:'stay-c', group:'fri-d', room:'yh', companion:'' },
-    { id: genId(), name:'박미나', channel:'ig', channelName:'ppmnn___', pkg:'day-b', group:'sat-b', room:'', companion:'김인욱 / 010-2639-7288 / 남편' },
-    { id: genId(), name:'손다민', channel:'ig', channelName:'happy.___.s', pkg:'day-b', group:'sat-c', room:'', companion:'' }
+    { id: genId(), name:'권세연', channel:'yt', channelName:'nodapcamp', pkg:'day-a', group:'fri-a', room:'', companion:'백지안 / 010-7930-3753 / 친구', extraFee:0 },
+    { id: genId(), name:'우연지', channel:'ig', channelName:'등산하는그레이스', pkg:'day-a', group:'fri-a', room:'', companion:'', extraFee:0 },
+    { id: genId(), name:'이돈휘', channel:'ig', channelName:'캠핑두목', pkg:'stay-a', group:'fri-a', room:'yh', companion:'', extraFee:0 },
+    { id: genId(), name:'홍민지', channel:'ig', channelName:'luceam95_45', pkg:'stay-c', group:'fri-a', room:'yh', companion:'전재홍 / 010-2758-6567 / 남자친구', extraFee:0 },
+    { id: genId(), name:'전소현', channel:'yt', channelName:'또밖또밖', pkg:'day-a', group:'fri-b', room:'', companion:'', extraFee:200000 },
+    { id: genId(), name:'이지현', channel:'ig', channelName:'hard.hyun', pkg:'stay-a', group:'fri-b', room:'yh', companion:'김민수 / 010-2047-2280 / 남자친구', extraFee:0 },
+    { id: genId(), name:'정우성', channel:'ig', channelName:'juungwoosung', pkg:'stay-c', group:'fri-b', room:'yh', companion:'미정 (생기면 연락 예정)', extraFee:0 },
+    { id: genId(), name:'심치성', channel:'yt', channelName:'캠퍼조이', pkg:'day-a', group:'fri-c', room:'', companion:'', extraFee:0 },
+    { id: genId(), name:'노다현', channel:'ig', channelName:'itda.upda', pkg:'stay-c', group:'fri-c', room:'yh', companion:'윤경주 / 010-8226-2232 / 친구', extraFee:0 },
+    { id: genId(), name:'진민희', channel:'ig', channelName:'j_mining', pkg:'stay-c', group:'fri-c', room:'pension1', companion:'심지은 / 010-9625-8815 / 친구, 박아름 / 010-7435-3503 / 친구', extraFee:0 },
+    { id: genId(), name:'표현준', channel:'yt', channelName:'션표의자연여행', pkg:'stay-c', group:'fri-d', room:'pension2', companion:'허정호 / 010-6664-581 / 크루, 김선영 / 010-7567-0369 / 크루', extraFee:0 },
+    { id: genId(), name:'김혁', channel:'yt', channelName:'김혁은오늘도밖입니다', pkg:'stay-c', group:'fri-d', room:'yh', companion:'', extraFee:0 },
+    { id: genId(), name:'박미나', channel:'ig', channelName:'ppmnn___', pkg:'day-b', group:'sat-b', room:'', companion:'김인욱 / 010-2639-7288 / 남편', extraFee:0 },
+    { id: genId(), name:'손다민', channel:'ig', channelName:'happy.___.s', pkg:'day-b', group:'sat-c', room:'', companion:'', extraFee:0 }
   ];
 
   function saveState(){
@@ -339,6 +369,10 @@
     return e;
   }
 
+  function formatWon(n){
+    return Number(n || 0).toLocaleString('ko-KR') + '원';
+  }
+
   function renderPackageLegend(){
     var grid = document.getElementById('pkgGrid');
     grid.innerHTML = '';
@@ -349,9 +383,35 @@
       var body = el('div', 'p-body');
       body.appendChild(el('div', 'p-tag', p.label));
       body.appendChild(el('div', 'p-desc', p.desc));
+      body.appendChild(el('div', 'p-fuel', '유류비 ' + formatWon(p.fuel) + ' 지원'));
       item.appendChild(body);
       grid.appendChild(item);
     });
+  }
+
+  function renderBudgetPanel(){
+    var panel = document.getElementById('budgetPanel');
+    if(!panel) return;
+    var fuelTotal = influencers.reduce(function(sum, i){
+      return sum + (PACKAGES[i.pkg] ? PACKAGES[i.pkg].fuel : 0);
+    }, 0);
+    var feeTotal = influencers.reduce(function(sum, i){
+      return sum + (i.extraFee || 0);
+    }, 0);
+    var grandTotal = fuelTotal + feeTotal;
+
+    panel.innerHTML = '';
+    panel.appendChild(el('div', 'budget-title', '💰 사용 예산 총합'));
+    panel.appendChild(buildBudgetRow('유류비', fuelTotal, false));
+    panel.appendChild(buildBudgetRow('추가 원고료', feeTotal, false));
+    panel.appendChild(buildBudgetRow('총합', grandTotal, true));
+  }
+
+  function buildBudgetRow(label, amount, isTotal){
+    var row = el('div', 'b-row' + (isTotal ? ' total' : ''));
+    row.appendChild(el('div', 'b-label', label));
+    row.appendChild(el('div', 'b-val', formatWon(amount)));
+    return row;
   }
 
   function populatePackageSelect(){
@@ -404,6 +464,28 @@
 
     card.appendChild(el('div', 'card-channel', inf.channelName));
     card.appendChild(el('div', 'card-pkg', PACKAGES[inf.pkg] ? PACKAGES[inf.pkg].label : inf.pkg));
+
+    var feeWrap = el('div', 'card-fee-edit');
+    feeWrap.appendChild(el('span', 'card-fee-label', '원고료'));
+    var feeInput = document.createElement('input');
+    feeInput.type = 'text';
+    feeInput.inputMode = 'numeric';
+    feeInput.className = 'card-fee-input';
+    feeInput.placeholder = '0';
+    feeInput.disabled = isLocked;
+    feeInput.value = inf.extraFee ? Number(inf.extraFee).toLocaleString('ko-KR') : '';
+    feeInput.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+    feeInput.addEventListener('input', function(){
+      var digits = feeInput.value.replace(/[^0-9]/g, '');
+      feeInput.value = digits === '' ? '' : Number(digits).toLocaleString('ko-KR');
+    });
+    feeInput.addEventListener('change', function(){
+      var digits = feeInput.value.replace(/[^0-9]/g, '');
+      inf.extraFee = digits === '' ? 0 : parseInt(digits, 10);
+      renderAll();
+    });
+    feeWrap.appendChild(feeInput);
+    card.appendChild(feeWrap);
 
     if(PACKAGES[inf.pkg] && PACKAGES[inf.pkg].needsRoom){
       var roomWrap = el('div', 'card-room');
@@ -581,7 +663,7 @@
       addForm.classList.remove('locked-form');
     }
 
-    ['addName','addChannel','addChannelName','addPackage','addCompanion','addBtn'].forEach(function(id){
+    ['addName','addChannel','addChannelName','addPackage','addCompanion','addExtraFee','addBtn'].forEach(function(id){
       document.getElementById(id).disabled = isLocked;
     });
     resetBtn.disabled = isLocked;
@@ -592,6 +674,7 @@
   function renderAll(){
     saveState();
     renderLockUI();
+    renderBudgetPanel();
     renderSummary();
     renderBoards();
   }
@@ -608,6 +691,12 @@
     renderAll();
   });
 
+  var addExtraFeeInput = document.getElementById('addExtraFee');
+  addExtraFeeInput.addEventListener('input', function(){
+    var digits = addExtraFeeInput.value.replace(/[^0-9]/g, '');
+    addExtraFeeInput.value = digits === '' ? '' : Number(digits).toLocaleString('ko-KR');
+  });
+
   document.getElementById('addBtn').addEventListener('click', function(){
     if(isLocked) return;
     var name = document.getElementById('addName').value.trim();
@@ -615,6 +704,8 @@
     var channelName = document.getElementById('addChannelName').value.trim();
     var pkg = document.getElementById('addPackage').value;
     var companion = document.getElementById('addCompanion').value.trim();
+    var extraFeeDigits = addExtraFeeInput.value.replace(/[^0-9]/g, '');
+    var extraFee = extraFeeDigits === '' ? 0 : parseInt(extraFeeDigits, 10);
     if(!name){
       alert('인플루언서 명을 입력해주세요.');
       return;
@@ -627,11 +718,13 @@
       pkg: pkg,
       group: null,
       room: '',
-      companion: companion
+      companion: companion,
+      extraFee: extraFee
     });
     document.getElementById('addName').value = '';
     document.getElementById('addChannelName').value = '';
     document.getElementById('addCompanion').value = '';
+    addExtraFeeInput.value = '';
     renderAll();
   });
 
