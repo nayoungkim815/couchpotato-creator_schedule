@@ -243,6 +243,11 @@
   }
   .locked-banner.show{display:block;}
 
+  .shared-banner{
+    background:var(--accent-soft);color:#0b4f9e;border-radius:12px;padding:10px 16px;
+    font-size:12.5px;font-weight:700;margin-bottom:18px;
+  }
+
   .footer-note{
     margin-top:30px;font-size:12px;color:var(--sub-ink);line-height:1.7;
     background:#fff;border-radius:14px;padding:16px 20px;box-shadow:0 0 0 1px var(--line);
@@ -260,15 +265,17 @@
     <div class="page-eyebrow">Room &amp; Group Board · Internal</div>
     <h1>인플루언서 그룹 · 객실 배정 보드</h1>
     <p>카드를 드래그해서 그룹 사이를 옮기고, 새 인플루언서는 아래 폼으로 추가하세요. 그룹당 최대 5팀입니다.<br>
-    변경사항은 이 브라우저에 자동 저장되어 새로고침해도 유지됩니다.</p>
+    변경사항은 이 브라우저에 자동 저장되어 새로고침해도 유지됩니다. 다른 사람과 공유하려면 "공유 링크 만들기"를 눌러주세요.</p>
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
       <a href="https://app.featuring.co/management/campaign-v2/shared/MZESBISLB4SRDLRA" target="_blank" rel="noopener" style="text-decoration:none;font-size:12px;font-weight:700;color:#fff;background:var(--accent);padding:6px 14px;border-radius:999px;">📋 인플루언서 전체 정보 ↗</a>
+      <button type="button" id="shareLinkBtn" style="font-size:12px;font-weight:700;color:#fff;background:var(--ink);border:none;padding:6px 14px;border-radius:999px;cursor:pointer;font-family:inherit;">🔗 공유 링크 만들기</button>
       <button type="button" id="lockBtn" style="font-size:12px;font-weight:700;padding:6px 14px;border-radius:999px;cursor:pointer;font-family:inherit;border:1px solid var(--line);"></button>
       <button type="button" id="resetBtn" style="font-size:12px;font-weight:700;color:var(--sub-ink);background:var(--bg-soft);border:1px solid var(--line);padding:6px 14px;border-radius:999px;cursor:pointer;font-family:inherit;">처음 상태로 초기화</button>
     </div>
   </div>
 
   <div class="locked-banner" id="lockedBanner">🔒 현재 잠금 상태입니다 — 배정을 수정하려면 위의 잠금 해제 버튼을 눌러주세요.</div>
+  <div class="shared-banner" id="sharedBanner" style="display:none;">🔗 공유받은 배정 상태를 불러왔습니다. 지금부터는 이 브라우저에도 자동 저장됩니다.</div>
 
   <h2 class="section-label">📦 참여 패키지 안내</h2>
   <div class="pkg-budget-row">
@@ -419,16 +426,46 @@
     }
   }
 
-  var loaded = loadState();
+  function encodeStateToBase64(obj){
+    var json = JSON.stringify(obj);
+    return btoa(unescape(encodeURIComponent(json)));
+  }
+
+  function decodeBase64ToState(str){
+    try{
+      var json = decodeURIComponent(escape(atob(str)));
+      var parsed = JSON.parse(json);
+      if(!parsed || !Array.isArray(parsed.influencers)) return null;
+      return parsed;
+    } catch(e){
+      return null;
+    }
+  }
+
   var influencers;
   var isLocked = false;
-  if(loaded){
-    influencers = loaded.influencers;
-    nextId = loaded.nextId || (influencers.length + 1);
-    isLocked = !!loaded.locked;
-  } else {
-    influencers = seedInfluencers;
+  var loadedFromShareLink = false;
+
+  var urlParams = new URLSearchParams(window.location.search);
+  var sharedParam = urlParams.get('data');
+  var sharedState = sharedParam ? decodeBase64ToState(sharedParam) : null;
+
+  if(sharedState){
+    influencers = sharedState.influencers;
+    nextId = sharedState.nextId || (influencers.length + 1);
+    isLocked = !!sharedState.locked;
+    loadedFromShareLink = true;
     saveState();
+  } else {
+    var loaded = loadState();
+    if(loaded){
+      influencers = loaded.influencers;
+      nextId = loaded.nextId || (influencers.length + 1);
+      isLocked = !!loaded.locked;
+    } else {
+      influencers = seedInfluencers;
+      saveState();
+    }
   }
 
   var draggedId = null;
@@ -839,6 +876,27 @@
     renderBoards();
   }
 
+  document.getElementById('shareLinkBtn').addEventListener('click', function(){
+    var payload = { nextId: nextId, influencers: influencers, locked: isLocked };
+    var encoded = encodeStateToBase64(payload);
+    var url = window.location.origin + window.location.pathname + '?data=' + encoded;
+    var btn = document.getElementById('shareLinkBtn');
+    var original = btn.textContent;
+
+    function showCopied(){
+      btn.textContent = '✅ 링크 복사됨';
+      setTimeout(function(){ btn.textContent = original; }, 2000);
+    }
+
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(url).then(showCopied).catch(function(){
+        prompt('아래 링크를 복사해서 공유하세요:', url);
+      });
+    } else {
+      prompt('아래 링크를 복사해서 공유하세요:', url);
+    }
+  });
+
   document.getElementById('lockBtn').addEventListener('click', function(){
     if(!isLocked){
       if(!confirm('현재 배정 상태로 잠글까요? 잠그면 드래그·추가·삭제가 모두 막힙니다.')){
@@ -959,6 +1017,10 @@
   populateAddRoomType();
   document.getElementById('addChannel').addEventListener('change', updateAddFormForChannel);
   updateAddFormForChannel();
+  if(loadedFromShareLink){
+    var sharedBannerEl = document.getElementById('sharedBanner');
+    if(sharedBannerEl){ sharedBannerEl.style.display = 'block'; }
+  }
   renderAll();
 
 })();
