@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>카우치포테이토 x 어반사이드 — 그룹·객실 배정 보드</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   :root{
     --ink:#1d1d1f;
@@ -42,9 +43,11 @@
   .page-head p{margin:0;color:var(--sub-ink);font-size:13.5px;}
 
   .section-label{
-    font-size:13px;font-weight:800;color:var(--ink);margin:0 0 12px;
+    font-size:13px;font-weight:800;color:var(--ink);margin:0 0 14px;
     display:flex;align-items:center;gap:6px;letter-spacing:-0.01em;
   }
+
+  .section-divider{border:none;border-top:1px solid var(--line);margin:34px 0;}
 
   /* ---- 패키지 안내: 조용한 레퍼런스 리스트 ---- */
   .pkg-budget-row{display:flex;gap:14px;align-items:stretch;margin-bottom:32px;flex-wrap:wrap;}
@@ -117,12 +120,22 @@
 
   .day-title{
     font-size:16px;font-weight:800;margin:26px 0 12px;
-    display:flex;align-items:center;gap:10px;
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;
   }
   .day-title .d-badge{
     font-size:11px;font-weight:700;color:#fff;background:var(--ink);
     padding:4px 10px;border-radius:999px;
   }
+  .day-title .day-count{
+    font-size:12px;font-weight:700;color:var(--accent);margin-left:2px;
+  }
+  .capture-area{padding:4px;border-radius:12px;}
+  .capture-toolbar{margin:26px 0 0;}
+  .capture-btn-main{
+    font-size:12.5px;font-weight:700;color:#fff;background:var(--accent);
+    border:none;padding:9px 18px;border-radius:999px;cursor:pointer;font-family:inherit;
+  }
+  .capture-btn-main:active{opacity:0.8;}
 
   .board{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;}
 
@@ -209,6 +222,21 @@
   .card-room select:disabled{background:var(--bg-soft);color:var(--sub-ink);cursor:not-allowed;}
   .add-form.locked-form input:disabled, .add-form.locked-form select:disabled{opacity:0.5;cursor:not-allowed;}
   .add-form.locked-form button:disabled{opacity:0.5;cursor:not-allowed;}
+  .tool-card{
+    background:#fff;border-radius:16px;padding:18px 20px;margin:20px 0 0;
+    box-shadow:0 0 0 1px var(--line);
+  }
+  .tool-card-label{font-size:13px;font-weight:800;color:var(--ink);margin-bottom:12px;}
+  .search-bar{display:flex;align-items:center;gap:10px;}
+  .search-bar input{
+    flex:1 1 300px;padding:10px 14px;border-radius:10px;border:1px solid var(--line);
+    font-size:13.5px;font-family:inherit;background:var(--bg-soft);color:var(--ink);
+  }
+  .search-count{font-size:12px;font-weight:700;color:var(--accent);white-space:nowrap;}
+
+  .card.search-dim{opacity:0.22;}
+  .card.search-match{box-shadow:0 0 0 2px var(--accent);}
+
   .locked-banner{
     background:var(--warn-bg);color:var(--warn);border-radius:12px;padding:10px 16px;
     font-size:12.5px;font-weight:700;margin-bottom:18px;display:none;
@@ -251,8 +279,10 @@
   <h2 class="section-label">🏨 객실 현황</h2>
   <div class="room-dashboard" id="summaryGrid"></div>
 
+  <hr class="section-divider">
+
+  <h2 class="section-label">➕ 새 인플루언서 추가</h2>
   <div class="add-form" id="addForm">
-    <h3>+ 새 인플루언서 추가</h3>
     <div class="add-form-row">
       <select id="addChannel">
         <option value="yt">유튜브</option>
@@ -270,17 +300,41 @@
     </div>
   </div>
 
+  <hr class="section-divider">
+
+  <h2 class="section-label">🗂 그룹 · 객실 배정 보드</h2>
+
   <h2 class="day-title"><span class="d-badge">미배정</span>그룹을 아직 정하지 않은 인플루언서</h2>
   <div class="board" id="boardUnassigned"></div>
 
   <h2 class="day-title"><span class="d-badge">기타</span>그룹 배정이 필요 없는 인원 (내부인원 등)</h2>
   <div class="board" id="boardOther"></div>
 
-  <h2 class="day-title"><span class="d-badge">9/11 금</span>인플루언서 데이 (14:00~19:00)</h2>
-  <div class="board" id="boardFri"></div>
+  <div class="tool-card">
+    <div class="tool-card-label">🔍 인원 검색</div>
+    <div class="search-bar">
+      <input id="searchInput" type="text" placeholder="이름 또는 채널명으로 검색">
+      <span class="search-count" id="searchResultCount"></span>
+    </div>
+  </div>
 
-  <h2 class="day-title"><span class="d-badge">9/12 토</span>인플루언서 타임 (10:30~13:30)</h2>
-  <div class="board" id="boardSat"></div>
+  <hr class="section-divider">
+
+  <div class="capture-toolbar">
+    <button type="button" class="capture-btn-main" id="bothCaptureBtn">📸 금·토 배정 한번에 캡처(JPG)</button>
+  </div>
+
+  <div id="bothDaysCaptureArea">
+    <div id="friCaptureArea" class="capture-area">
+      <h2 class="day-title"><span class="d-badge">9/11 금</span>인플루언서 데이 (14:00~19:00)<span class="day-count" id="friDayCount"></span></h2>
+      <div class="board" id="boardFri"></div>
+    </div>
+
+    <div id="satCaptureArea" class="capture-area">
+      <h2 class="day-title"><span class="d-badge">9/12 토</span>인플루언서 타임 (10:30~13:30)<span class="day-count" id="satDayCount"></span></h2>
+      <div class="board" id="boardSat"></div>
+    </div>
+  </div>
 
   <div class="footer-note">
     📌 변경사항은 <b>이 브라우저에 자동 저장</b>되어 새로고침해도 유지됩니다. (단, 다른 브라우저·기기·시크릿 모드에서는 보이지 않으니, 팀원과 공유하려면 캡처하거나 별도 문서로 옮겨두세요.)<br>
@@ -378,6 +432,7 @@
   }
 
   var draggedId = null;
+  var searchTerm = '';
 
   function el(tag, cls, html){
     var e = document.createElement(tag);
@@ -508,7 +563,13 @@
   }
 
   function buildCard(inf, noDrag){
-    var card = el('div', 'card' + (isLocked ? ' locked' : '') + (noDrag ? ' no-drag' : ''));
+    var searchClass = '';
+    if(searchTerm){
+      var nameHit = inf.name && inf.name.toLowerCase().indexOf(searchTerm) !== -1;
+      var chNameHit = inf.channelName && inf.channelName.toLowerCase().indexOf(searchTerm) !== -1;
+      searchClass = (nameHit || chNameHit) ? ' search-match' : ' search-dim';
+    }
+    var card = el('div', 'card' + (isLocked ? ' locked' : '') + (noDrag ? ' no-drag' : '') + searchClass);
     card.draggable = !isLocked && !noDrag;
     card.dataset.id = inf.id;
 
@@ -721,17 +782,25 @@
       otherBoard.appendChild(buildBucket('other', null, null, true, '기타 인원<span>수정·삭제만 가능한 리스트</span>', true));
     }
 
+    var friGroupIds = GROUPS.filter(function(g){ return g.day === 'fri'; }).map(function(g){ return g.id; });
     var friBoard = document.getElementById('boardFri');
     friBoard.innerHTML = '';
     GROUPS.filter(function(g){ return g.day === 'fri'; }).forEach(function(g){
       friBoard.appendChild(buildBucket(g.id, g.label, g.time, false));
     });
+    var friCount = influencers.filter(function(i){ return friGroupIds.indexOf(i.group) !== -1; }).length;
+    var friCountEl = document.getElementById('friDayCount');
+    if(friCountEl){ friCountEl.textContent = '· ' + friCount + '명 배정'; }
 
+    var satGroupIds = GROUPS.filter(function(g){ return g.day === 'sat'; }).map(function(g){ return g.id; });
     var satBoard = document.getElementById('boardSat');
     satBoard.innerHTML = '';
     GROUPS.filter(function(g){ return g.day === 'sat'; }).forEach(function(g){
       satBoard.appendChild(buildBucket(g.id, g.label, g.time, false));
     });
+    var satCount = influencers.filter(function(i){ return satGroupIds.indexOf(i.group) !== -1; }).length;
+    var satCountEl = document.getElementById('satDayCount');
+    if(satCountEl){ satCountEl.textContent = '· ' + satCount + '명 배정'; }
   }
 
   function renderLockUI(){
@@ -836,6 +905,53 @@
     // reassign fresh ids to avoid collisions after multiple resets
     influencers.forEach(function(i){ i.id = genId(); });
     renderAll();
+  });
+
+  document.getElementById('searchInput').addEventListener('input', function(){
+    searchTerm = this.value.trim().toLowerCase();
+    var countEl = document.getElementById('searchResultCount');
+    if(searchTerm){
+      var count = influencers.filter(function(i){
+        var nameHit = i.name && i.name.toLowerCase().indexOf(searchTerm) !== -1;
+        var chNameHit = i.channelName && i.channelName.toLowerCase().indexOf(searchTerm) !== -1;
+        return nameHit || chNameHit;
+      }).length;
+      countEl.textContent = count + '명 일치';
+    } else {
+      countEl.textContent = '';
+    }
+    renderBoards();
+  });
+
+  function captureSection(elementId, filename){
+    var target = document.getElementById(elementId);
+    if(!target){ return; }
+    if(typeof html2canvas === 'undefined'){
+      alert('캡처 기능을 불러오지 못했습니다. 인터넷 연결을 확인한 뒤 다시 시도해주세요.');
+      return;
+    }
+    html2canvas(target, {
+      backgroundColor: '#f5f5f7',
+      scale: 2,
+      useCORS: true,
+      ignoreElements: function(node){
+        return !!(node.classList && node.classList.contains('capture-btn'));
+      }
+    }).then(function(canvas){
+      var link = document.createElement('a');
+      link.download = filename;
+      link.href = canvas.toDataURL('image/jpeg', 0.92);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }).catch(function(err){
+      console.error('캡처 실패:', err);
+      alert('캡처 중 오류가 발생했습니다.');
+    });
+  }
+
+  document.getElementById('bothCaptureBtn').addEventListener('click', function(){
+    captureSection('bothDaysCaptureArea', '인플루언서_그룹배정_금토.jpg');
   });
 
   renderPackageLegend();
