@@ -879,7 +879,7 @@
   document.getElementById('shareLinkBtn').addEventListener('click', function(){
     var payload = { nextId: nextId, influencers: influencers, locked: isLocked };
     var encoded = encodeStateToBase64(payload);
-    var url = window.location.origin + window.location.pathname + '?data=' + encoded;
+    var url = window.location.origin + window.location.pathname + '?data=' + encodeURIComponent(encoded);
     var btn = document.getElementById('shareLinkBtn');
     var original = btn.textContent;
 
