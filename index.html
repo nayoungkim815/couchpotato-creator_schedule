@@ -396,12 +396,12 @@
 (function(){
 
   var PACKAGES = {
-    'day-a': { label:'1일 방문형A', desc:'9/11(금) 14:00~18:00 · 인플루언서 데이 당일 참여 · 숙박 없음', needsRoom:false, day:'fri', fuel:150000 },
-    'day-b': { label:'1일 방문형B', desc:'9/12(토) 10:30~13:30 · 인플루언서 타임 당일 참여 · 숙박 없음', needsRoom:false, day:'sat', fuel:150000 },
-    'stay-a': { label:'숙박형A', desc:'9/11~9/12(금-토) · 인플루언서 데이 + 1일차 참석 · 숙박 지원', needsRoom:true, day:'fri', fuel:100000 },
-    'stay-b': { label:'숙박형B', desc:'9/12~9/13(토-일) · 본행사만 참석 · 숙박 지원', needsRoom:true, day:'sat', fuel:100000 },
-    'stay-c': { label:'숙박형C', desc:'9/11~9/13(금-일) · 인플루언서 데이 + 본행사 전체 참석 · 숙박 지원', needsRoom:true, day:'fri', fuel:100000 },
-    'internal': { label:'내부인원', desc:'행사 운영 지원 내부 인원 참여', needsRoom:true, day:'fri', fuel:0 }
+    'day-a': { label:'1일 방문형A', dayLabel:'금 당일방문', desc:'9/11(금) 14:00~18:00 · 인플루언서 데이 당일 참여 · 숙박 없음', needsRoom:false, day:'fri', fuel:150000 },
+    'day-b': { label:'1일 방문형B', dayLabel:'토 당일방문', desc:'9/12(토) 10:30~13:30 · 인플루언서 타임 당일 참여 · 숙박 없음', needsRoom:false, day:'sat', fuel:150000 },
+    'stay-a': { label:'숙박형A', dayLabel:'금-토', desc:'9/11~9/12(금-토) · 인플루언서 데이 + 1일차 참석 · 숙박 지원', needsRoom:true, day:'fri', fuel:100000 },
+    'stay-b': { label:'숙박형B', dayLabel:'토-일', desc:'9/12~9/13(토-일) · 본행사만 참석 · 숙박 지원', needsRoom:true, day:'sat', fuel:100000 },
+    'stay-c': { label:'숙박형C', dayLabel:'금-일', desc:'9/11~9/13(금-일) · 인플루언서 데이 + 본행사 전체 참석 · 숙박 지원', needsRoom:true, day:'fri', fuel:100000 },
+    'internal': { label:'내부인원', dayLabel:'', desc:'행사 운영 지원 내부 인원 참여', needsRoom:true, day:'fri', fuel:0 }
   };
 
   var ROOM_TYPES = {
@@ -581,7 +581,8 @@
       if(key === 'internal') return;
       var opt = document.createElement('option');
       opt.value = key;
-      opt.textContent = PACKAGES[key].label;
+      var p = PACKAGES[key];
+      opt.textContent = p.label + (p.dayLabel ? ' (' + p.dayLabel + ')' : '');
       sel.appendChild(opt);
     });
   }
