@@ -691,11 +691,29 @@
     });
   }
 
+  function calcRoomUsage(key){
+    var withUnit = influencers.filter(function(i){ return i.room === key && i.roomUnit; });
+    var withoutUnit = influencers.filter(function(i){ return i.room === key && !i.roomUnit; });
+    var distinctUnits = {};
+    withUnit.forEach(function(i){ distinctUnits[i.roomUnit] = true; });
+    var unitsUsed = Object.keys(distinctUnits).length + withoutUnit.length;
+    var headcount = withUnit.length + withoutUnit.length;
+    return { unitsUsed: unitsUsed, headcount: headcount };
+  }
+
   function renderSummary(){
     var grid = document.getElementById('summaryGrid');
 
     var totalAvail = Object.keys(ROOM_TOTALS).reduce(function(sum, key){ return sum + ROOM_TOTALS[key]; }, 0);
-    var totalUsed = influencers.filter(function(i){ return i.room && ROOM_TOTALS.hasOwnProperty(i.room); }).length;
+    var perTypeUsage = {};
+    var totalUsed = 0;
+    var totalHeadcount = 0;
+    Object.keys(ROOM_TOTALS).forEach(function(key){
+      var usage = calcRoomUsage(key);
+      perTypeUsage[key] = usage;
+      totalUsed += usage.unitsUsed;
+      totalHeadcount += usage.headcount;
+    });
 
     var mainInfluencers = influencers.filter(function(i){ return i.pkg !== 'internal'; });
     var internalInfluencers = influencers.filter(function(i){ return i.pkg === 'internal'; });
@@ -707,13 +725,14 @@
     var internalTotal = internalInfluencers.length + internalCompanions;
 
     grid.innerHTML = '';
-    grid.appendChild(buildRoomStat('전체 가용 객실', totalUsed, totalAvail, '5개 유형 합계 · ' + totalUsed + '/' + totalAvail + '실 사용'));
+    grid.appendChild(buildRoomStat('전체 가용 객실', totalUsed, totalAvail, '5개 유형 합계 · ' + totalUsed + '/' + totalAvail + '실 사용 (총 배정 ' + totalHeadcount + '명)'));
 
     Object.keys(ROOM_TOTALS).forEach(function(key){
-      var used = influencers.filter(function(i){ return i.room === key; }).length;
+      var usage = perTypeUsage[key];
       var total = ROOM_TOTALS[key];
       var extraNote = key === 'footbath_1room' ? ' · 원래 2개 중 1개는 백패킹존 배정 제외' : '';
-      grid.appendChild(buildRoomStat(ROOM_TYPES[key], used, total, used + '/' + total + '실 사용' + extraNote));
+      var shareNote = usage.headcount !== usage.unitsUsed ? ' · 배정 ' + usage.headcount + '명 (밤별로 방 공유)' : '';
+      grid.appendChild(buildRoomStat(ROOM_TYPES[key], usage.unitsUsed, total, usage.unitsUsed + '/' + total + '실 사용' + shareNote + extraNote));
     });
 
     grid.appendChild(buildPeopleStat('총 참가 인원 (동행자 포함)', totalPeople, '인플루언서 ' + mainInfluencers.length + '명 + 동행자 ' + totalCompanions + '명 (내부인원 별도)'));
