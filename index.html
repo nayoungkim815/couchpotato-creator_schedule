@@ -354,7 +354,7 @@
   <hr class="section-divider">
 
   <div class="capture-toolbar">
-    <button type="button" class="capture-btn-main" id="bothCaptureBtn">📸 금·토 배정 한번에 캡처(JPG)</button>
+    <button type="button" class="capture-btn-main" id="bothCaptureBtn">📸 객실현황+금·토 배정 한번에 캡처(JPG)</button>
   </div>
 
   <div id="bothDaysCaptureArea">
@@ -370,9 +370,10 @@
   </div>
 
   <div class="footer-note">
-    📌 변경사항은 <b>이 브라우저에 자동 저장</b>되어 새로고침해도 유지됩니다. (단, 다른 브라우저·기기·시크릿 모드에서는 보이지 않으니, 팀원과 공유하려면 캡처하거나 별도 문서로 옮겨두세요.)<br>
+    📌 변경사항은 <b>이 브라우저에 자동 저장</b>되어 새로고침해도 유지됩니다. 다른 사람과 공유하려면 상단의 <b>"🔗 공유 링크 만들기"</b>로 지금 상태를 링크로 전달하거나, <b>"📸 객실현황+금·토 배정 한번에 캡처(JPG)"</b>로 이미지를 내보내세요.<br>
     📌 객실 수: 유스호스텔(원룸-대형) 7실, 별관(원룸-소형) 6실, 족욕장 펜션(원룸형) 2실(1실은 백패킹존 배정 제외, 실사용 1실), 족욕장 펜션(투룸형) 1실, IJK 펜션(통나무, 원룸형) 3실, 민박(원룸형) 3실, 황토방(원룸형) 2실 → 총 가용 23실.<br>
-    📌 그룹 구성 권장: 그룹당 최대 5팀. 오디오 겹침 방지를 위해 인스타그래머 2팀 + 유튜버 2~3팀 구성을 권장합니다.
+    📌 그룹 구성 권장: 그룹당 최대 5팀. 오디오 겹침 방지를 위해 인스타그래머 2팀 + 유튜버 2~3팀 구성을 권장합니다.<br>
+    📌 배정이 확정되면 <b>"🔒 이 버전 잠그기"</b>로 실수 수정을 막고, 이름·채널명으로 빠르게 찾으려면 <b>"🔍 인원 검색"</b>을 활용하세요.
   </div>
 
 </div>
@@ -412,7 +413,7 @@
 
   var GROUPS = [
     { id:'fri-a', day:'fri', label:'A', time:'14:00~15:00' },
-    { id:'fri-b', day:'fri', label:'B', time:'15:00~16:00' },
+    { id:'fri-b', day:'fri', label:'B', time:'15:00~16:00', note:'아이즈매거진 방문' },
     { id:'fri-c', day:'fri', label:'C', time:'16:00~17:00' },
     { id:'fri-d', day:'fri', label:'D', time:'17:00~18:00' },
     { id:'fri-e', day:'fri', label:'E', time:'18:00~19:00' },
@@ -758,7 +759,7 @@
     return card;
   }
 
-  function buildBucket(groupId, letter, time, isUnassigned, titleHtml, noDrag){
+  function buildBucket(groupId, letter, time, isUnassigned, titleHtml, noDrag, groupNote){
     var members = influencers.filter(function(i){ return (i.group || null) === groupId; });
     var bucket = el('div', 'bucket' + (isUnassigned ? ' unassigned-bucket' : '') + (noDrag ? ' list-only-bucket' : ''));
     bucket.dataset.group = groupId === null ? '' : groupId;
@@ -767,7 +768,8 @@
     var left = el('div', 'bucket-head-left');
     if(!isUnassigned){
       left.appendChild(el('div', 'bucket-letter', letter));
-      left.appendChild(el('div', 'bucket-title', letter + '그룹<span>' + time + '</span>'));
+      var titleText = letter + '그룹<span>' + time + (groupNote ? ' · 📌 ' + groupNote : '') + '</span>';
+      left.appendChild(el('div', 'bucket-title', titleText));
     } else {
       left.appendChild(el('div', 'bucket-title', titleHtml || '풀(Pool)<span>드래그해서 그룹에 배정</span>'));
     }
@@ -859,7 +861,7 @@
     var friBoard = document.getElementById('boardFri');
     friBoard.innerHTML = '';
     GROUPS.filter(function(g){ return g.day === 'fri'; }).forEach(function(g){
-      friBoard.appendChild(buildBucket(g.id, g.label, g.time, false));
+      friBoard.appendChild(buildBucket(g.id, g.label, g.time, false, null, false, g.note));
     });
     var friCount = influencers.filter(function(i){ return friGroupIds.indexOf(i.group) !== -1; }).length;
     var friCountEl = document.getElementById('friDayCount');
@@ -869,7 +871,7 @@
     var satBoard = document.getElementById('boardSat');
     satBoard.innerHTML = '';
     GROUPS.filter(function(g){ return g.day === 'sat'; }).forEach(function(g){
-      satBoard.appendChild(buildBucket(g.id, g.label, g.time, false));
+      satBoard.appendChild(buildBucket(g.id, g.label, g.time, false, null, false, g.note));
     });
     var satCount = influencers.filter(function(i){ return satGroupIds.indexOf(i.group) !== -1; }).length;
     var satCountEl = document.getElementById('satDayCount');
@@ -1030,8 +1032,61 @@
     });
   }
 
+  function captureRoomsAndDays(filename){
+    if(typeof html2canvas === 'undefined'){
+      alert('캡처 기능을 불러오지 못했습니다. 인터넷 연결을 확인한 뒤 다시 시도해주세요.');
+      return;
+    }
+    var roomDash = document.getElementById('summaryGrid');
+    var daysArea = document.getElementById('bothDaysCaptureArea');
+    if(!roomDash || !daysArea){ return; }
+
+    var temp = document.createElement('div');
+    temp.style.position = 'fixed';
+    temp.style.left = '-99999px';
+    temp.style.top = '0';
+    temp.style.width = daysArea.offsetWidth + 'px';
+    temp.style.background = '#f5f5f7';
+    temp.style.padding = '20px';
+
+    var roomHeading = document.createElement('h2');
+    roomHeading.className = 'section-label';
+    roomHeading.textContent = '🏨 객실 현황';
+    temp.appendChild(roomHeading);
+    temp.appendChild(roomDash.cloneNode(true));
+
+    var spacer = document.createElement('div');
+    spacer.style.height = '28px';
+    temp.appendChild(spacer);
+
+    temp.appendChild(daysArea.cloneNode(true));
+
+    document.body.appendChild(temp);
+
+    html2canvas(temp, {
+      backgroundColor: '#f5f5f7',
+      scale: 2,
+      useCORS: true,
+      ignoreElements: function(node){
+        return !!(node.classList && node.classList.contains('capture-btn'));
+      }
+    }).then(function(canvas){
+      var link = document.createElement('a');
+      link.download = filename;
+      link.href = canvas.toDataURL('image/jpeg', 0.92);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      document.body.removeChild(temp);
+    }).catch(function(err){
+      console.error('캡처 실패:', err);
+      alert('캡처 중 오류가 발생했습니다.');
+      document.body.removeChild(temp);
+    });
+  }
+
   document.getElementById('bothCaptureBtn').addEventListener('click', function(){
-    captureSection('bothDaysCaptureArea', '인플루언서_그룹배정_금토.jpg');
+    captureRoomsAndDays('인플루언서_객실현황_그룹배정_금토.jpg');
   });
 
   renderPackageLegend();
