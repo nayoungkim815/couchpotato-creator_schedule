@@ -183,12 +183,21 @@
   .card.dragging{opacity:0.4;}
   .card.no-drag{cursor:default;}
   .card-top{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
-  .card-name{font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .card-name-input{
+    flex:1;min-width:0;font-weight:700;font-size:12.5px;padding:4px 7px;border-radius:7px;
+    border:1px solid var(--line);background:#fff;font-family:inherit;color:var(--ink);
+  }
+  .card-name-input:disabled{background:var(--bg-soft);color:var(--sub-ink);cursor:not-allowed;}
   .ch-tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;flex:none;}
   .ch-tag.ig{background:var(--ig-bg);color:var(--ig);}
   .ch-tag.yt{background:var(--yt-bg);color:var(--yt);}
   .ch-tag.internal{background:var(--bg-soft);color:var(--sub-ink);box-shadow:0 0 0 1px var(--line);}
-  .card-channel{color:var(--sub-ink);font-size:11px;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .card-channel-edit{margin-bottom:4px;}
+  .card-channel-input{
+    width:100%;font-size:11px;padding:4px 7px;border-radius:7px;border:1px solid var(--line);
+    background:#fff;font-family:inherit;color:var(--sub-ink);
+  }
+  .card-channel-input:disabled{background:var(--bg-soft);color:var(--sub-ink);cursor:not-allowed;}
   .card-pkg{font-size:10.5px;color:var(--accent);font-weight:700;margin-bottom:4px;}
   .card-fee-edit{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
   .card-fee-label{font-size:10px;font-weight:700;color:var(--sub-ink);flex:none;}
@@ -216,9 +225,14 @@
   }
   .card-remove:hover{color:var(--full);}
 
-  .card-note{
-    margin-top:5px;font-size:10.5px;color:var(--sub-ink);line-height:1.5;font-style:italic;
+  .card-note-edit{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
+  .card-note-label{font-size:10px;font-weight:700;color:var(--sub-ink);flex:none;}
+  .card-note-input{
+    width:100%;font-size:11px;padding:4px 7px;border-radius:7px;border:1px solid var(--line);
+    background:#fff;font-family:inherit;color:var(--ink);
   }
+  .card-note-input:disabled{background:var(--bg-soft);color:var(--sub-ink);cursor:not-allowed;}
+  .card-note-input::placeholder{color:var(--sub-ink);font-weight:500;}
 
   .card.locked{cursor:default;}
   .card.locked .card-remove{display:none;}
@@ -495,6 +509,19 @@
   var draggedId = null;
   var searchTerm = '';
 
+  var AUTO_SCROLL_ZONE = 90;
+  var AUTO_SCROLL_SPEED = 22;
+  document.addEventListener('dragover', function(e){
+    if(!draggedId) return;
+    var y = e.clientY;
+    var vh = window.innerHeight;
+    if(y < AUTO_SCROLL_ZONE){
+      window.scrollBy(0, -AUTO_SCROLL_SPEED);
+    } else if(y > vh - AUTO_SCROLL_ZONE){
+      window.scrollBy(0, AUTO_SCROLL_SPEED);
+    }
+  });
+
   function el(tag, cls, html){
     var e = document.createElement(tag);
     if(cls) e.className = cls;
@@ -651,7 +678,17 @@
     card.dataset.id = inf.id;
 
     var top = el('div', 'card-top');
-    top.appendChild(el('span', 'card-name', inf.name));
+    var nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.className = 'card-name-input';
+    nameInput.value = inf.name || '';
+    nameInput.disabled = isLocked;
+    nameInput.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+    nameInput.addEventListener('change', function(){
+      inf.name = nameInput.value.trim();
+      renderAll();
+    });
+    top.appendChild(nameInput);
     if(inf.pkg === 'internal'){
       top.appendChild(el('span', 'ch-tag internal', '내부'));
     } else {
@@ -661,7 +698,20 @@
     card.appendChild(top);
 
     if(inf.pkg !== 'internal'){
-      card.appendChild(el('div', 'card-channel', inf.channelName));
+      var chNameWrap = el('div', 'card-channel-edit');
+      var chNameInput = document.createElement('input');
+      chNameInput.type = 'text';
+      chNameInput.className = 'card-channel-input';
+      chNameInput.placeholder = '채널명';
+      chNameInput.value = inf.channelName === '-' ? '' : (inf.channelName || '');
+      chNameInput.disabled = isLocked;
+      chNameInput.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+      chNameInput.addEventListener('change', function(){
+        inf.channelName = chNameInput.value.trim() || '-';
+        renderAll();
+      });
+      chNameWrap.appendChild(chNameInput);
+      card.appendChild(chNameWrap);
     }
     card.appendChild(el('div', 'card-pkg', PACKAGES[inf.pkg] ? PACKAGES[inf.pkg].label : inf.pkg));
 
@@ -725,9 +775,21 @@
       card.appendChild(roomWrap);
     }
 
-    if(inf.note && inf.note.trim()){
-      card.appendChild(el('div', 'card-note', '📝 ' + inf.note));
-    }
+    var noteWrap = el('div', 'card-note-edit');
+    noteWrap.appendChild(el('span', 'card-note-label', '비고'));
+    var noteInput = document.createElement('input');
+    noteInput.type = 'text';
+    noteInput.className = 'card-note-input';
+    noteInput.placeholder = '메모 입력';
+    noteInput.disabled = isLocked;
+    noteInput.value = inf.note || '';
+    noteInput.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+    noteInput.addEventListener('change', function(){
+      inf.note = noteInput.value.trim();
+      renderAll();
+    });
+    noteWrap.appendChild(noteInput);
+    card.appendChild(noteWrap);
 
     if(!isLocked){
       var removeBtn = el('button', 'card-remove', '×');
