@@ -103,6 +103,20 @@
     .room-stat:not(:last-child){padding-bottom:16px !important;border-bottom:1px solid rgba(255,255,255,0.15);}
   }
 
+  .tetris-grid-wrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:32px;}
+  .tetris-room-card{background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 0 0 1px var(--line);}
+  .tetris-room-title{font-size:12.5px;font-weight:800;color:var(--ink);margin-bottom:10px;}
+  .tetris-table{width:100%;border-collapse:collapse;font-size:11.5px;}
+  .tetris-table th{
+    text-align:center;font-weight:700;color:var(--sub-ink);font-size:10.5px;
+    padding:5px 4px;border-bottom:1px solid var(--line);
+  }
+  .tetris-table td{text-align:center;padding:6px 4px;border-bottom:1px solid var(--bg-soft);}
+  .tetris-unit-num{font-weight:700;color:var(--sub-ink);}
+  .tetris-empty{color:var(--sub-ink);opacity:0.5;}
+  .tetris-occ{font-weight:700;color:var(--ok);background:var(--ok-bg);border-radius:6px;}
+  .tetris-conflict{font-weight:700;color:var(--full);background:var(--full-bg);border-radius:6px;font-size:10.5px;}
+
   .add-form{
     background:#fff;border-radius:16px;padding:18px 20px;margin-bottom:26px;
     box-shadow:0 0 0 1px var(--line);
@@ -301,6 +315,10 @@
 
   <h2 class="section-label">🏨 객실 현황</h2>
   <div class="room-dashboard" id="summaryGrid"></div>
+
+  <h2 class="section-label" style="margin-top:24px;">🧩 객실 야간 배정표 (밤별 점유 현황)</h2>
+  <p class="body-soft" style="margin:-6px 0 14px;font-size:12.5px;color:var(--sub-ink);">숙박형A(금-토)는 금요일 밤만, 숙박형B(토-일)는 토요일 밤만 차지하므로, 같은 방을 서로 다른 날 나눠 쓸 수 있어요. 카드에서 "객실 번호"를 지정하면 여기에 반영됩니다.</p>
+  <div id="roomTetrisGrid" class="tetris-grid-wrap"></div>
 
   <hr class="section-divider">
 
@@ -615,6 +633,64 @@
     if(!needsRoom){ roomSelect.value = ''; }
   }
 
+  var NIGHTS = [
+    { key:'n1', label:'9/11(금)밤' },
+    { key:'n2', label:'9/12(토)밤' }
+  ];
+
+  function getNightsForPkg(pkg){
+    if(pkg === 'stay-a') return ['n1'];
+    if(pkg === 'stay-b') return ['n2'];
+    if(pkg === 'stay-c') return ['n1', 'n2'];
+    if(pkg === 'internal') return ['n1', 'n2'];
+    return [];
+  }
+
+  function renderRoomTetris(){
+    var wrap = document.getElementById('roomTetrisGrid');
+    if(!wrap) return;
+    wrap.innerHTML = '';
+
+    Object.keys(ROOM_TOTALS).forEach(function(roomKey){
+      var total = ROOM_TOTALS[roomKey];
+      var card = el('div', 'tetris-room-card');
+      card.appendChild(el('div', 'tetris-room-title', ROOM_TYPES[roomKey]));
+
+      var table = document.createElement('table');
+      table.className = 'tetris-table';
+      var thead = document.createElement('thead');
+      var headRow = document.createElement('tr');
+      headRow.appendChild(el('th', null, '#'));
+      NIGHTS.forEach(function(n){ headRow.appendChild(el('th', null, n.label)); });
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+
+      var tbody = document.createElement('tbody');
+      for(var u = 1; u <= total; u++){
+        var row = document.createElement('tr');
+        row.appendChild(el('td', 'tetris-unit-num', String(u)));
+        NIGHTS.forEach(function(n){
+          var occupants = influencers.filter(function(i){
+            return i.room === roomKey && String(i.roomUnit) === String(u) && getNightsForPkg(i.pkg).indexOf(n.key) !== -1;
+          });
+          var cell;
+          if(occupants.length === 0){
+            cell = el('td', 'tetris-empty', '-');
+          } else if(occupants.length === 1){
+            cell = el('td', 'tetris-occ', occupants[0].name);
+          } else {
+            cell = el('td', 'tetris-conflict', '⚠ ' + occupants.map(function(o){ return o.name; }).join(', '));
+          }
+          row.appendChild(cell);
+        });
+        tbody.appendChild(row);
+      }
+      table.appendChild(tbody);
+      card.appendChild(table);
+      wrap.appendChild(card);
+    });
+  }
+
   function renderSummary(){
     var grid = document.getElementById('summaryGrid');
 
@@ -771,11 +847,36 @@
       });
       sel.addEventListener('change', function(){
         inf.room = sel.value;
+        inf.roomUnit = '';
         renderAll();
       });
       sel.addEventListener('mousedown', function(e){ e.stopPropagation(); });
       roomWrap.appendChild(sel);
       card.appendChild(roomWrap);
+
+      if(inf.room && ROOM_TOTALS.hasOwnProperty(inf.room)){
+        var unitWrap = el('div', 'card-room');
+        var unitSel = document.createElement('select');
+        unitSel.disabled = isLocked;
+        var blankOpt = document.createElement('option');
+        blankOpt.value = '';
+        blankOpt.textContent = '객실 번호 미정';
+        unitSel.appendChild(blankOpt);
+        for(var u = 1; u <= ROOM_TOTALS[inf.room]; u++){
+          var uOpt = document.createElement('option');
+          uOpt.value = String(u);
+          uOpt.textContent = ROOM_TYPES[inf.room] + ' #' + u;
+          if(String(inf.roomUnit) === String(u)) uOpt.selected = true;
+          unitSel.appendChild(uOpt);
+        }
+        unitSel.addEventListener('change', function(){
+          inf.roomUnit = unitSel.value;
+          renderAll();
+        });
+        unitSel.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+        unitWrap.appendChild(unitSel);
+        card.appendChild(unitWrap);
+      }
     }
 
     var noteWrap = el('div', 'card-note-edit');
@@ -972,6 +1073,7 @@
     renderLockUI();
     renderBudgetPanel();
     renderSummary();
+    renderRoomTetris();
     renderBoards();
   }
 
@@ -1103,6 +1205,7 @@
       return;
     }
     var roomDash = document.getElementById('summaryGrid');
+    var otherBoard = document.getElementById('boardOther');
     var daysArea = document.getElementById('bothDaysCaptureArea');
     if(!roomDash || !daysArea){ return; }
 
@@ -1119,6 +1222,18 @@
     roomHeading.textContent = '🏨 객실 현황';
     temp.appendChild(roomHeading);
     temp.appendChild(roomDash.cloneNode(true));
+
+    if(otherBoard){
+      var spacer0 = document.createElement('div');
+      spacer0.style.height = '28px';
+      temp.appendChild(spacer0);
+
+      var otherHeading = document.createElement('h2');
+      otherHeading.className = 'section-label';
+      otherHeading.textContent = '👤 그룹 배정이 필요 없는 인원 (내부인원 등)';
+      temp.appendChild(otherHeading);
+      temp.appendChild(otherBoard.cloneNode(true));
+    }
 
     var spacer = document.createElement('div');
     spacer.style.height = '28px';
