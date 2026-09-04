@@ -714,7 +714,9 @@
       chNameWrap.appendChild(chNameInput);
       card.appendChild(chNameWrap);
     }
-    card.appendChild(el('div', 'card-pkg', PACKAGES[inf.pkg] ? PACKAGES[inf.pkg].label : inf.pkg));
+    var pkgInfo = PACKAGES[inf.pkg];
+    var pkgText = pkgInfo ? (pkgInfo.label + (pkgInfo.dayLabel ? ' (' + pkgInfo.dayLabel + ')' : '')) : inf.pkg;
+    card.appendChild(el('div', 'card-pkg', pkgText));
 
     var feeWrap = el('div', 'card-fee-edit');
     feeWrap.appendChild(el('span', 'card-fee-label', '원고료'));
