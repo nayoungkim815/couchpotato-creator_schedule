@@ -1218,21 +1218,119 @@
     });
   }
 
+  function buildCaptureCard(inf){
+    var card = el('div', 'card no-drag');
+    var boxStyle = 'display:block;width:100%;box-sizing:border-box;padding:4px 7px;border-radius:7px;border:1px solid #d2d2d7;background:#fff;font-family:inherit;';
+
+    var top = el('div', 'card-top');
+    var nameBox = el('div', 'card-name-input', inf.name || '');
+    nameBox.style.cssText = boxStyle + 'font-weight:700;font-size:12.5px;flex:1;min-width:0;';
+    top.appendChild(nameBox);
+    if(inf.pkg === 'internal'){
+      top.appendChild(el('span', 'ch-tag internal', '내부'));
+    } else {
+      top.appendChild(el('span', 'ch-tag ' + inf.channel, inf.channel === 'yt' ? '유튜브' : '인스타'));
+    }
+    card.appendChild(top);
+
+    if(inf.pkg !== 'internal'){
+      var chNameWrap = el('div', 'card-channel-edit');
+      var chNameBox = el('div', 'card-channel-input', (inf.channelName && inf.channelName !== '-') ? inf.channelName : '');
+      chNameBox.style.cssText = boxStyle + 'font-size:11px;color:#6e6e73;';
+      chNameWrap.appendChild(chNameBox);
+      card.appendChild(chNameWrap);
+    }
+
+    var pkgInfo = PACKAGES[inf.pkg];
+    var pkgText = pkgInfo ? (pkgInfo.label + (pkgInfo.dayLabel ? ' (' + pkgInfo.dayLabel + ')' : '')) : inf.pkg;
+    card.appendChild(el('div', 'card-pkg', pkgText));
+
+    var feeWrap = el('div', 'card-fee-edit');
+    feeWrap.appendChild(el('span', 'card-fee-label', '원고료'));
+    var feeBox = el('div', 'card-fee-input', inf.extraFee ? Number(inf.extraFee).toLocaleString('ko-KR') : '');
+    feeBox.style.cssText = boxStyle + 'text-align:right;font-size:11px;color:#ff3b30;font-weight:700;';
+    feeWrap.appendChild(feeBox);
+    card.appendChild(feeWrap);
+
+    var compWrap = el('div', 'card-comp-edit');
+    compWrap.appendChild(el('span', 'card-comp-label', '동행자 수'));
+    var compBox = el('div', 'card-comp-input', String(inf.companionCount || 0));
+    compBox.style.cssText = boxStyle + 'width:52px;text-align:center;font-size:11px;';
+    compWrap.appendChild(compBox);
+    card.appendChild(compWrap);
+
+    if(pkgInfo && pkgInfo.needsRoom){
+      var roomWrap = el('div', 'card-room');
+      var roomBox = el('div', null, inf.room ? ROOM_TYPES[inf.room] : '객실 미정');
+      roomBox.style.cssText = boxStyle + 'font-size:11px;color:#1d1d1f;';
+      roomWrap.appendChild(roomBox);
+      card.appendChild(roomWrap);
+
+      if(inf.room && ROOM_TOTALS.hasOwnProperty(inf.room)){
+        var unitWrap = el('div', 'card-room');
+        var unitBox = el('div', null, inf.roomUnit ? (ROOM_TYPES[inf.room] + ' #' + inf.roomUnit) : '객실 번호 미정');
+        unitBox.style.cssText = boxStyle + 'font-size:11px;color:#1d1d1f;';
+        unitWrap.appendChild(unitBox);
+        card.appendChild(unitWrap);
+      }
+    }
+
+    var noteWrap = el('div', 'card-note-edit');
+    noteWrap.appendChild(el('span', 'card-note-label', '비고'));
+    var noteBox = el('div', 'card-note-input', inf.note || '');
+    noteBox.style.cssText = boxStyle + 'font-size:11px;color:#1d1d1f;';
+    noteWrap.appendChild(noteBox);
+    card.appendChild(noteWrap);
+
+    return card;
+  }
+
+  function buildCaptureBucket(groupId, letter, time, groupNote){
+    var members = influencers.filter(function(i){ return (i.group || null) === groupId; });
+    var bucket = el('div', 'bucket');
+    var head = el('div', 'bucket-head');
+    var left = el('div', 'bucket-head-left');
+    left.appendChild(el('div', 'bucket-letter', letter));
+    left.appendChild(el('div', 'bucket-title', letter + '그룹<span>' + time + (groupNote ? ' · 📌 ' + groupNote : '') + '</span>'));
+    head.appendChild(left);
+    var countCls = members.length >= MAX_PER_GROUP ? 'full' : (members.length >= MAX_PER_GROUP - 1 ? 'warn' : 'ok');
+    head.appendChild(el('span', 'bucket-count ' + countCls, members.length + '/' + MAX_PER_GROUP));
+    bucket.appendChild(head);
+    var cardsWrap = el('div', 'bucket-cards');
+    if(members.length === 0){
+      cardsWrap.appendChild(el('div', 'bucket-empty-msg', '배정 인원 없음'));
+    } else {
+      members.forEach(function(inf){ cardsWrap.appendChild(buildCaptureCard(inf)); });
+    }
+    bucket.appendChild(cardsWrap);
+    return bucket;
+  }
+
+  function buildCaptureOtherGrid(){
+    var wrap = el('div', 'other-grid');
+    var members = influencers.filter(function(i){ return (i.group || null) === 'other'; });
+    if(members.length === 0){
+      wrap.appendChild(el('div', 'other-empty-msg', '해당 인원 없음'));
+    } else {
+      members.forEach(function(inf){ wrap.appendChild(buildCaptureCard(inf)); });
+    }
+    return wrap;
+  }
+
   function captureRoomsAndDays(filename){
     if(typeof html2canvas === 'undefined'){
       alert('캡처 기능을 불러오지 못했습니다. 인터넷 연결을 확인한 뒤 다시 시도해주세요.');
       return;
     }
     var roomDash = document.getElementById('summaryGrid');
-    var otherBoard = document.getElementById('boardOther');
-    var daysArea = document.getElementById('bothDaysCaptureArea');
-    if(!roomDash || !daysArea){ return; }
+    var refWidthEl = document.getElementById('bothDaysCaptureArea');
+    if(!roomDash){ return; }
 
     var temp = document.createElement('div');
     temp.style.position = 'fixed';
     temp.style.left = '-99999px';
     temp.style.top = '0';
-    temp.style.width = daysArea.offsetWidth + 'px';
+    temp.style.width = (refWidthEl ? refWidthEl.offsetWidth : 1000) + 'px';
     temp.style.background = '#f5f5f7';
     temp.style.padding = '20px';
 
@@ -1242,33 +1340,50 @@
     temp.appendChild(roomHeading);
     temp.appendChild(roomDash.cloneNode(true));
 
-    if(otherBoard){
-      var spacer0 = document.createElement('div');
-      spacer0.style.height = '28px';
-      temp.appendChild(spacer0);
+    var spacer0 = document.createElement('div');
+    spacer0.style.height = '28px';
+    temp.appendChild(spacer0);
 
-      var otherHeading = document.createElement('h2');
-      otherHeading.className = 'section-label';
-      otherHeading.textContent = '👤 그룹 배정이 필요 없는 인원 (내부인원 등)';
-      temp.appendChild(otherHeading);
-      temp.appendChild(otherBoard.cloneNode(true));
-    }
+    var otherHeading = document.createElement('h2');
+    otherHeading.className = 'section-label';
+    otherHeading.textContent = '👤 그룹 배정이 필요 없는 인원 (내부인원 등)';
+    temp.appendChild(otherHeading);
+    temp.appendChild(buildCaptureOtherGrid());
 
-    var spacer = document.createElement('div');
-    spacer.style.height = '28px';
-    temp.appendChild(spacer);
+    var spacer1 = document.createElement('div');
+    spacer1.style.height = '28px';
+    temp.appendChild(spacer1);
 
-    temp.appendChild(daysArea.cloneNode(true));
+    var friTitle = document.createElement('h2');
+    friTitle.className = 'day-title';
+    friTitle.innerHTML = '<span class="d-badge">9/11 금</span>인플루언서 데이 (14:00~19:00)';
+    temp.appendChild(friTitle);
+    var friBoard = el('div', 'board');
+    GROUPS.filter(function(g){ return g.day === 'fri'; }).forEach(function(g){
+      friBoard.appendChild(buildCaptureBucket(g.id, g.label, g.time, g.note));
+    });
+    temp.appendChild(friBoard);
+
+    var spacer2 = document.createElement('div');
+    spacer2.style.height = '24px';
+    temp.appendChild(spacer2);
+
+    var satTitle = document.createElement('h2');
+    satTitle.className = 'day-title';
+    satTitle.innerHTML = '<span class="d-badge">9/12 토</span>인플루언서 타임 (10:30~13:30)';
+    temp.appendChild(satTitle);
+    var satBoard = el('div', 'board');
+    GROUPS.filter(function(g){ return g.day === 'sat'; }).forEach(function(g){
+      satBoard.appendChild(buildCaptureBucket(g.id, g.label, g.time, g.note));
+    });
+    temp.appendChild(satBoard);
 
     document.body.appendChild(temp);
 
     html2canvas(temp, {
       backgroundColor: '#f5f5f7',
       scale: 2,
-      useCORS: true,
-      ignoreElements: function(node){
-        return !!(node.classList && node.classList.contains('capture-btn'));
-      }
+      useCORS: true
     }).then(function(canvas){
       var link = document.createElement('a');
       link.download = filename;
