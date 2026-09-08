@@ -349,6 +349,14 @@
         <label>숙박방</label>
         <select id="addRoomType"></select>
       </div>
+      <div class="field" id="addRoomUnitField" style="display:none;">
+        <label>객실 번호</label>
+        <select id="addRoomUnit"></select>
+      </div>
+      <div class="field" id="addInternalStayField" style="display:none;">
+        <label>숙박 기간</label>
+        <select id="addInternalStay"></select>
+      </div>
       <div class="field" style="flex:1 1 90px;">
         <label>동행자 수</label>
         <input id="addCompanionCount" type="number" min="0" step="1">
@@ -356,6 +364,10 @@
       <div class="field">
         <label>추가 원고료(원)</label>
         <input id="addExtraFee" type="text" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label>차량</label>
+        <select id="addVehicle"></select>
       </div>
       <div class="field">
         <label>비고</label>
@@ -616,6 +628,58 @@
     });
   }
 
+  function populateAddInternalStay(){
+    var sel = document.getElementById('addInternalStay');
+    sel.innerHTML = '';
+    var blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = '숙박 기간 미정';
+    sel.appendChild(blank);
+    Object.keys(INTERNAL_STAY_OPTIONS).forEach(function(key){
+      var opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = INTERNAL_STAY_OPTIONS[key].label;
+      sel.appendChild(opt);
+    });
+  }
+
+  function populateAddVehicle(){
+    var sel = document.getElementById('addVehicle');
+    sel.innerHTML = '';
+    Object.keys(VEHICLE_OPTIONS).forEach(function(key){
+      var opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = VEHICLE_OPTIONS[key];
+      sel.appendChild(opt);
+    });
+  }
+
+  function updateAddRoomUnitOptions(){
+    var roomSelect = document.getElementById('addRoomType');
+    var unitField = document.getElementById('addRoomUnitField');
+    var unitSelect = document.getElementById('addRoomUnit');
+    var roomVal = roomSelect.value;
+
+    unitSelect.innerHTML = '';
+    var blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = '객실 번호 미정';
+    unitSelect.appendChild(blank);
+
+    if(roomVal && ROOM_TOTALS.hasOwnProperty(roomVal)){
+      for(var u = 1; u <= ROOM_TOTALS[roomVal]; u++){
+        var opt = document.createElement('option');
+        opt.value = String(u);
+        opt.textContent = ROOM_TYPES[roomVal] + ' #' + u;
+        unitSelect.appendChild(opt);
+      }
+      unitField.style.display = roomSelect.disabled ? 'none' : '';
+      unitSelect.disabled = roomSelect.disabled;
+    } else {
+      unitField.style.display = 'none';
+    }
+  }
+
   function updateAddFormVisibility(){
     var channel = document.getElementById('addChannel').value;
     var isInternal = channel === 'internal';
@@ -631,6 +695,11 @@
     roomField.style.display = needsRoom ? '' : 'none';
     roomSelect.disabled = !needsRoom;
     if(!needsRoom){ roomSelect.value = ''; }
+
+    updateAddRoomUnitOptions();
+
+    var stayField = document.getElementById('addInternalStayField');
+    stayField.style.display = isInternal ? '' : 'none';
   }
 
   var NIGHTS = [
@@ -638,11 +707,28 @@
     { key:'n2', label:'9/12(토)밤' }
   ];
 
-  function getNightsForPkg(pkg){
-    if(pkg === 'stay-a') return ['n1'];
-    if(pkg === 'stay-b') return ['n2'];
-    if(pkg === 'stay-c') return ['n1', 'n2'];
-    if(pkg === 'internal') return ['n1', 'n2'];
+  var VEHICLE_OPTIONS = {
+    '': '차량 미정',
+    'jh-lead': '박준현(선발대)',
+    'jh2': '박진하',
+    'my': '정민윤',
+    'js': '박진세'
+  };
+
+  var INTERNAL_STAY_OPTIONS = {
+    'fri-sat': { label:'금-토', nights:['n1'] },
+    'sat-sun': { label:'토-일', nights:['n2'] },
+    'fri-sun': { label:'금-일', nights:['n1', 'n2'] }
+  };
+
+  function getNightsForInfluencer(inf){
+    if(inf.pkg === 'stay-a') return ['n1'];
+    if(inf.pkg === 'stay-b') return ['n2'];
+    if(inf.pkg === 'stay-c') return ['n1', 'n2'];
+    if(inf.pkg === 'internal'){
+      var opt = INTERNAL_STAY_OPTIONS[inf.internalStayRange];
+      return opt ? opt.nights.slice() : ['n1', 'n2'];
+    }
     return [];
   }
 
@@ -671,15 +757,13 @@
         row.appendChild(el('td', 'tetris-unit-num', String(u)));
         NIGHTS.forEach(function(n){
           var occupants = influencers.filter(function(i){
-            return i.room === roomKey && String(i.roomUnit) === String(u) && getNightsForPkg(i.pkg).indexOf(n.key) !== -1;
+            return i.room === roomKey && String(i.roomUnit) === String(u) && getNightsForInfluencer(i).indexOf(n.key) !== -1;
           });
           var cell;
           if(occupants.length === 0){
             cell = el('td', 'tetris-empty', '-');
-          } else if(occupants.length === 1){
-            cell = el('td', 'tetris-occ', occupants[0].name);
           } else {
-            cell = el('td', 'tetris-conflict', '⚠ ' + occupants.map(function(o){ return o.name; }).join(', '));
+            cell = el('td', 'tetris-occ', occupants.map(function(o){ return o.name; }).join(', '));
           }
           row.appendChild(cell);
         });
@@ -896,7 +980,49 @@
         unitWrap.appendChild(unitSel);
         card.appendChild(unitWrap);
       }
+
+      if(inf.pkg === 'internal'){
+        var stayWrap = el('div', 'card-room');
+        var staySel = document.createElement('select');
+        staySel.disabled = isLocked;
+        var stayBlank = document.createElement('option');
+        stayBlank.value = '';
+        stayBlank.textContent = '숙박 기간 미정';
+        staySel.appendChild(stayBlank);
+        Object.keys(INTERNAL_STAY_OPTIONS).forEach(function(key){
+          var sOpt = document.createElement('option');
+          sOpt.value = key;
+          sOpt.textContent = INTERNAL_STAY_OPTIONS[key].label;
+          if(inf.internalStayRange === key) sOpt.selected = true;
+          staySel.appendChild(sOpt);
+        });
+        staySel.addEventListener('change', function(){
+          inf.internalStayRange = staySel.value;
+          renderAll();
+        });
+        staySel.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+        stayWrap.appendChild(staySel);
+        card.appendChild(stayWrap);
+      }
     }
+
+    var vehicleWrap = el('div', 'card-room');
+    var vehicleSel = document.createElement('select');
+    vehicleSel.disabled = isLocked;
+    Object.keys(VEHICLE_OPTIONS).forEach(function(key){
+      var vOpt = document.createElement('option');
+      vOpt.value = key;
+      vOpt.textContent = VEHICLE_OPTIONS[key];
+      if((inf.vehicle || '') === key) vOpt.selected = true;
+      vehicleSel.appendChild(vOpt);
+    });
+    vehicleSel.addEventListener('change', function(){
+      inf.vehicle = vehicleSel.value;
+      renderAll();
+    });
+    vehicleSel.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+    vehicleWrap.appendChild(vehicleSel);
+    card.appendChild(vehicleWrap);
 
     var noteWrap = el('div', 'card-note-edit');
     noteWrap.appendChild(el('span', 'card-note-label', '비고'));
@@ -1082,7 +1208,7 @@
       addForm.classList.remove('locked-form');
     }
 
-    ['addName','addChannel','addChannelName','addPackage','addNote','addCompanionCount','addRoomType','addExtraFee','addBtn'].forEach(function(id){
+    ['addName','addChannel','addChannelName','addPackage','addNote','addCompanionCount','addRoomType','addRoomUnit','addInternalStay','addVehicle','addExtraFee','addBtn'].forEach(function(id){
       document.getElementById(id).disabled = isLocked;
     });
   }
@@ -1147,6 +1273,9 @@
     var companionCount = companionCountRaw === '' ? 0 : Math.max(0, parseInt(companionCountRaw, 10) || 0);
     var needsRoom = !!(PACKAGES[pkg] && PACKAGES[pkg].needsRoom);
     var room = needsRoom ? document.getElementById('addRoomType').value : '';
+    var roomUnit = needsRoom ? document.getElementById('addRoomUnit').value : '';
+    var internalStayRange = isInternal ? document.getElementById('addInternalStay').value : '';
+    var vehicle = document.getElementById('addVehicle').value;
     var extraFeeDigits = addExtraFeeInput.value.replace(/[^0-9]/g, '');
     var extraFee = extraFeeDigits === '' ? 0 : parseInt(extraFeeDigits, 10);
     var note = document.getElementById('addNote').value.trim();
@@ -1162,6 +1291,9 @@
       pkg: pkg,
       group: isInternal ? 'other' : null,
       room: room,
+      roomUnit: roomUnit,
+      internalStayRange: internalStayRange,
+      vehicle: vehicle,
       note: note,
       companionCount: companionCount,
       extraFee: extraFee
@@ -1171,6 +1303,8 @@
     document.getElementById('addNote').value = '';
     document.getElementById('addCompanionCount').value = '';
     addExtraFeeInput.value = '';
+    document.getElementById('addInternalStay').value = '';
+    document.getElementById('addVehicle').value = '';
     updateAddFormVisibility();
     renderAll();
   });
@@ -1273,7 +1407,22 @@
         unitWrap.appendChild(unitBox);
         card.appendChild(unitWrap);
       }
+
+      if(inf.pkg === 'internal'){
+        var stayWrap = el('div', 'card-room');
+        var stayOpt = INTERNAL_STAY_OPTIONS[inf.internalStayRange];
+        var stayBox = el('div', null, stayOpt ? stayOpt.label : '숙박 기간 미정');
+        stayBox.style.cssText = boxStyle + 'font-size:11px;color:#1d1d1f;';
+        stayWrap.appendChild(stayBox);
+        card.appendChild(stayWrap);
+      }
     }
+
+    var vehicleWrap = el('div', 'card-room');
+    var vehicleBox = el('div', null, VEHICLE_OPTIONS[inf.vehicle || ''] || '차량 미정');
+    vehicleBox.style.cssText = boxStyle + 'font-size:11px;color:#1d1d1f;';
+    vehicleWrap.appendChild(vehicleBox);
+    card.appendChild(vehicleWrap);
 
     var noteWrap = el('div', 'card-note-edit');
     noteWrap.appendChild(el('span', 'card-note-label', '비고'));
@@ -1406,8 +1555,11 @@
   renderPackageLegend();
   populatePackageSelect();
   populateAddRoomType();
+  populateAddInternalStay();
+  populateAddVehicle();
   document.getElementById('addChannel').addEventListener('change', updateAddFormVisibility);
   document.getElementById('addPackage').addEventListener('change', updateAddFormVisibility);
+  document.getElementById('addRoomType').addEventListener('change', updateAddRoomUnitOptions);
   updateAddFormVisibility();
   if(loadedFromShareLink){
     var sharedBannerEl = document.getElementById('sharedBanner');
