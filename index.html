@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>카우치포테이토 x 어반사이드 — 그룹·객실 배정 보드</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
 <style>
   :root{
     --ink:#1d1d1f;
@@ -506,12 +507,20 @@
 
   function encodeStateToBase64(obj){
     var json = JSON.stringify(obj);
+    if(typeof LZString !== 'undefined'){
+      return 'z:' + LZString.compressToEncodedURIComponent(json);
+    }
     return btoa(unescape(encodeURIComponent(json)));
   }
 
   function decodeBase64ToState(str){
     try{
-      var json = decodeURIComponent(escape(atob(str)));
+      var json;
+      if(str.indexOf('z:') === 0 && typeof LZString !== 'undefined'){
+        json = LZString.decompressFromEncodedURIComponent(str.slice(2));
+      } else {
+        json = decodeURIComponent(escape(atob(str)));
+      }
       var parsed = JSON.parse(json);
       if(!parsed || !Array.isArray(parsed.influencers)) return null;
       return parsed;
