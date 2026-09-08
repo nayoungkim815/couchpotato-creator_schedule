@@ -106,6 +106,12 @@
   .tetris-grid-wrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:32px;}
   .tetris-room-card{background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 0 0 1px var(--line);}
   .tetris-room-title{font-size:12.5px;font-weight:800;color:var(--ink);margin-bottom:10px;}
+  .vehicle-name-list{display:flex;flex-wrap:wrap;gap:6px;}
+  .vehicle-name-chip{
+    font-size:11.5px;font-weight:700;color:var(--ink);background:var(--bg-soft);
+    padding:5px 11px;border-radius:999px;
+  }
+  .vehicle-empty-msg{font-size:11.5px;color:var(--sub-ink);}
   .tetris-table{width:100%;border-collapse:collapse;font-size:11.5px;}
   .tetris-table th{
     text-align:center;font-weight:700;color:var(--sub-ink);font-size:10.5px;
@@ -321,6 +327,9 @@
   <p class="body-soft" style="margin:-6px 0 14px;font-size:12.5px;color:var(--sub-ink);">숙박형A(금-토)는 금요일 밤만, 숙박형B(토-일)는 토요일 밤만 차지하므로, 같은 방을 서로 다른 날 나눠 쓸 수 있어요. 카드에서 "객실 번호"를 지정하면 여기에 반영됩니다.</p>
   <div id="roomTetrisGrid" class="tetris-grid-wrap"></div>
 
+  <h2 class="section-label" style="margin-top:24px;">🚗 차량 배정</h2>
+  <div id="vehicleAssignGrid" class="tetris-grid-wrap"></div>
+
   <hr class="section-divider">
 
   <h2 class="section-label">➕ 새 인플루언서 추가</h2>
@@ -362,11 +371,11 @@
         <label>동행자 수</label>
         <input id="addCompanionCount" type="number" min="0" step="1">
       </div>
-      <div class="field">
+      <div class="field" id="addExtraFeeField">
         <label>추가 원고료(원)</label>
         <input id="addExtraFee" type="text" inputmode="numeric">
       </div>
-      <div class="field">
+      <div class="field" id="addVehicleField" style="display:none;">
         <label>차량</label>
         <select id="addVehicle"></select>
       </div>
@@ -701,6 +710,13 @@
 
     var stayField = document.getElementById('addInternalStayField');
     stayField.style.display = isInternal ? '' : 'none';
+
+    var vehicleField = document.getElementById('addVehicleField');
+    vehicleField.style.display = isInternal ? '' : 'none';
+
+    var feeField = document.getElementById('addExtraFeeField');
+    feeField.style.display = isInternal ? 'none' : '';
+    if(isInternal){ addExtraFeeInput.value = ''; }
   }
 
   var NIGHTS = [
@@ -713,7 +729,8 @@
     'jh-lead': '박준현(선발대)',
     'jh2': '박진하',
     'my': '정민윤',
-    'js': '박진세'
+    'js': '박진세',
+    'na': '해당없음'
   };
 
   var INTERNAL_STAY_OPTIONS = {
@@ -775,6 +792,41 @@
       card.appendChild(table);
       wrap.appendChild(card);
     });
+  }
+
+  function renderVehicleAssignment(){
+    var wrap = document.getElementById('vehicleAssignGrid');
+    if(!wrap) return;
+    wrap.innerHTML = '';
+
+    Object.keys(VEHICLE_OPTIONS).forEach(function(key){
+      if(key === '') return;
+      var card = el('div', 'tetris-room-card');
+      card.appendChild(el('div', 'tetris-room-title', VEHICLE_OPTIONS[key]));
+      var members = influencers.filter(function(i){ return i.pkg === 'internal' && (i.vehicle || '') === key; });
+      if(members.length === 0){
+        card.appendChild(el('div', 'vehicle-empty-msg', '배정 인원 없음'));
+      } else {
+        var list = el('div', 'vehicle-name-list');
+        members.forEach(function(inf){
+          list.appendChild(el('span', 'vehicle-name-chip', inf.name || '(이름 없음)'));
+        });
+        card.appendChild(list);
+      }
+      wrap.appendChild(card);
+    });
+
+    var unassigned = influencers.filter(function(i){ return i.pkg === 'internal' && !i.vehicle; });
+    if(unassigned.length > 0){
+      var unassignedCard = el('div', 'tetris-room-card');
+      unassignedCard.appendChild(el('div', 'tetris-room-title', '차량 미정'));
+      var uList = el('div', 'vehicle-name-list');
+      unassigned.forEach(function(inf){
+        uList.appendChild(el('span', 'vehicle-name-chip', inf.name || '(이름 없음)'));
+      });
+      unassignedCard.appendChild(uList);
+      wrap.appendChild(unassignedCard);
+    }
   }
 
   function calcRoomUsage(key){
@@ -899,27 +951,29 @@
     var pkgText = pkgInfo ? (pkgInfo.label + (pkgInfo.dayLabel ? ' (' + pkgInfo.dayLabel + ')' : '')) : inf.pkg;
     card.appendChild(el('div', 'card-pkg', pkgText));
 
-    var feeWrap = el('div', 'card-fee-edit');
-    feeWrap.appendChild(el('span', 'card-fee-label', '원고료'));
-    var feeInput = document.createElement('input');
-    feeInput.type = 'text';
-    feeInput.inputMode = 'numeric';
-    feeInput.className = 'card-fee-input';
-    feeInput.placeholder = '0';
-    feeInput.disabled = isLocked;
-    feeInput.value = inf.extraFee ? Number(inf.extraFee).toLocaleString('ko-KR') : '';
-    feeInput.addEventListener('mousedown', function(e){ e.stopPropagation(); });
-    feeInput.addEventListener('input', function(){
-      var digits = feeInput.value.replace(/[^0-9]/g, '');
-      feeInput.value = digits === '' ? '' : Number(digits).toLocaleString('ko-KR');
-    });
-    feeInput.addEventListener('change', function(){
-      var digits = feeInput.value.replace(/[^0-9]/g, '');
-      inf.extraFee = digits === '' ? 0 : parseInt(digits, 10);
-      renderAll();
-    });
-    feeWrap.appendChild(feeInput);
-    card.appendChild(feeWrap);
+    if(inf.pkg !== 'internal'){
+      var feeWrap = el('div', 'card-fee-edit');
+      feeWrap.appendChild(el('span', 'card-fee-label', '원고료'));
+      var feeInput = document.createElement('input');
+      feeInput.type = 'text';
+      feeInput.inputMode = 'numeric';
+      feeInput.className = 'card-fee-input';
+      feeInput.placeholder = '0';
+      feeInput.disabled = isLocked;
+      feeInput.value = inf.extraFee ? Number(inf.extraFee).toLocaleString('ko-KR') : '';
+      feeInput.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+      feeInput.addEventListener('input', function(){
+        var digits = feeInput.value.replace(/[^0-9]/g, '');
+        feeInput.value = digits === '' ? '' : Number(digits).toLocaleString('ko-KR');
+      });
+      feeInput.addEventListener('change', function(){
+        var digits = feeInput.value.replace(/[^0-9]/g, '');
+        inf.extraFee = digits === '' ? 0 : parseInt(digits, 10);
+        renderAll();
+      });
+      feeWrap.appendChild(feeInput);
+      card.appendChild(feeWrap);
+    }
 
     var compWrap = el('div', 'card-comp-edit');
     compWrap.appendChild(el('span', 'card-comp-label', '동행자 수'));
@@ -1008,23 +1062,25 @@
       }
     }
 
-    var vehicleWrap = el('div', 'card-room');
-    var vehicleSel = document.createElement('select');
-    vehicleSel.disabled = isLocked;
-    Object.keys(VEHICLE_OPTIONS).forEach(function(key){
-      var vOpt = document.createElement('option');
-      vOpt.value = key;
-      vOpt.textContent = VEHICLE_OPTIONS[key];
-      if((inf.vehicle || '') === key) vOpt.selected = true;
-      vehicleSel.appendChild(vOpt);
-    });
-    vehicleSel.addEventListener('change', function(){
-      inf.vehicle = vehicleSel.value;
-      renderAll();
-    });
-    vehicleSel.addEventListener('mousedown', function(e){ e.stopPropagation(); });
-    vehicleWrap.appendChild(vehicleSel);
-    card.appendChild(vehicleWrap);
+    if(inf.pkg === 'internal'){
+      var vehicleWrap = el('div', 'card-room');
+      var vehicleSel = document.createElement('select');
+      vehicleSel.disabled = isLocked;
+      Object.keys(VEHICLE_OPTIONS).forEach(function(key){
+        var vOpt = document.createElement('option');
+        vOpt.value = key;
+        vOpt.textContent = VEHICLE_OPTIONS[key];
+        if((inf.vehicle || '') === key) vOpt.selected = true;
+        vehicleSel.appendChild(vOpt);
+      });
+      vehicleSel.addEventListener('change', function(){
+        inf.vehicle = vehicleSel.value;
+        renderAll();
+      });
+      vehicleSel.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+      vehicleWrap.appendChild(vehicleSel);
+      card.appendChild(vehicleWrap);
+    }
 
     var noteWrap = el('div', 'card-note-edit');
     noteWrap.appendChild(el('span', 'card-note-label', '비고'));
@@ -1221,6 +1277,7 @@
     renderBudgetPanel();
     renderSummary();
     renderRoomTetris();
+    renderVehicleAssignment();
     renderBoards();
   }
 
@@ -1277,8 +1334,8 @@
     var room = needsRoom ? document.getElementById('addRoomType').value : '';
     var roomUnit = needsRoom ? document.getElementById('addRoomUnit').value : '';
     var internalStayRange = isInternal ? document.getElementById('addInternalStay').value : '';
-    var vehicle = document.getElementById('addVehicle').value;
-    var extraFeeDigits = addExtraFeeInput.value.replace(/[^0-9]/g, '');
+    var vehicle = isInternal ? document.getElementById('addVehicle').value : '';
+    var extraFeeDigits = isInternal ? '' : addExtraFeeInput.value.replace(/[^0-9]/g, '');
     var extraFee = extraFeeDigits === '' ? 0 : parseInt(extraFeeDigits, 10);
     var note = document.getElementById('addNote').value.trim();
     if(!name){
@@ -1381,12 +1438,14 @@
     var pkgText = pkgInfo ? (pkgInfo.label + (pkgInfo.dayLabel ? ' (' + pkgInfo.dayLabel + ')' : '')) : inf.pkg;
     card.appendChild(el('div', 'card-pkg', pkgText));
 
-    var feeWrap = el('div', 'card-fee-edit');
-    feeWrap.appendChild(el('span', 'card-fee-label', '원고료'));
-    var feeBox = el('div', 'card-fee-input', inf.extraFee ? Number(inf.extraFee).toLocaleString('ko-KR') : '');
-    feeBox.style.cssText = boxStyle + 'text-align:right;font-size:11px;color:#ff3b30;font-weight:700;';
-    feeWrap.appendChild(feeBox);
-    card.appendChild(feeWrap);
+    if(inf.pkg !== 'internal'){
+      var feeWrap = el('div', 'card-fee-edit');
+      feeWrap.appendChild(el('span', 'card-fee-label', '원고료'));
+      var feeBox = el('div', 'card-fee-input', inf.extraFee ? Number(inf.extraFee).toLocaleString('ko-KR') : '');
+      feeBox.style.cssText = boxStyle + 'text-align:right;font-size:11px;color:#ff3b30;font-weight:700;';
+      feeWrap.appendChild(feeBox);
+      card.appendChild(feeWrap);
+    }
 
     var compWrap = el('div', 'card-comp-edit');
     compWrap.appendChild(el('span', 'card-comp-label', '동행자 수'));
@@ -1420,11 +1479,13 @@
       }
     }
 
-    var vehicleWrap = el('div', 'card-room');
-    var vehicleBox = el('div', null, VEHICLE_OPTIONS[inf.vehicle || ''] || '차량 미정');
-    vehicleBox.style.cssText = boxStyle + 'font-size:11px;color:#1d1d1f;';
-    vehicleWrap.appendChild(vehicleBox);
-    card.appendChild(vehicleWrap);
+    if(inf.pkg === 'internal'){
+      var vehicleWrap = el('div', 'card-room');
+      var vehicleBox = el('div', null, VEHICLE_OPTIONS[inf.vehicle || ''] || '차량 미정');
+      vehicleBox.style.cssText = boxStyle + 'font-size:11px;color:#1d1d1f;';
+      vehicleWrap.appendChild(vehicleBox);
+      card.appendChild(vehicleWrap);
+    }
 
     var noteWrap = el('div', 'card-note-edit');
     noteWrap.appendChild(el('span', 'card-note-label', '비고'));
